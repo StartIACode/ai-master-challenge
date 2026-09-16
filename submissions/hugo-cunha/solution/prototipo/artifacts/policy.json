@@ -1,0 +1,42 @@
+[
+  {
+    "category": "Access",
+    "action": "auto-roteio com rascunho",
+    "reason": "pedido repetitivo e de alta precisão; rotear não concede acesso"
+  },
+  {
+    "category": "Administrative rights",
+    "action": "sugerir fila",
+    "reason": "elevação de privilégio é segurança e o modelo erra 31% da classe"
+  },
+  {
+    "category": "HR Support",
+    "action": "sugerir fila",
+    "reason": "envolve pessoas: nunca rascunho automático"
+  },
+  {
+    "category": "Hardware",
+    "action": "auto-roteio com rascunho",
+    "reason": "troubleshooting padronizável; classe que absorve confusões, primeira a ter kill switch"
+  },
+  {
+    "category": "Internal Project",
+    "action": "sugerir fila",
+    "reason": "não é suporte; vai ao PMO com confirmação"
+  },
+  {
+    "category": "Miscellaneous",
+    "action": "sempre humano",
+    "reason": "classe 'não sei' por definição: sempre humano"
+  },
+  {
+    "category": "Purchase",
+    "action": "sugerir fila",
+    "reason": "envolve dinheiro e aprovação: N2 confirma a fila"
+  },
+  {
+    "category": "Storage",
+    "action": "auto-roteio com rascunho",
+    "reason": "melhor precisão entre as classes; aumento de cota é decisão do N2"
+  }
+]
