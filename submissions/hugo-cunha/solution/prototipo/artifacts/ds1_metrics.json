@@ -1,0 +1,296 @@
+{
+  "generated_at": "2026-09-16T22:26:16+00:00",
+  "source": {
+    "file": "customer_support_tickets.csv",
+    "sha256": "b06a9cde84da65db388bd964d75f88ee1eed96607cf75d0c35f09c3f11bf8bea"
+  },
+  "n_rows": 8469,
+  "n_columns": 17,
+  "n_closed": 2769,
+  "placeholder": "{product_purchased}",
+  "placeholder_share": 1.0,
+  "first_sentence_distinct": 16,
+  "first_sentence_top": [
+    {
+      "sentence": "I'm having an issue with the {product_purchased}",
+      "n": 5868
+    },
+    {
+      "sentence": "I'm unable to access my {product_purchased} account",
+      "n": 189
+    },
+    {
+      "sentence": "I've forgotten my password for my {product_purchased} account, and the password reset option is not working",
+      "n": 186
+    }
+  ],
+  "resolution_n": 2769,
+  "resolution_unique": 2769,
+  "resolution_avg_words": 5.4868,
+  "example_com_share": 0.3429,
+  "time_window": {
+    "start": "2023-05-31 21:53:30",
+    "end": "2023-06-02 00:55:33"
+  },
+  "time_window_hours": 27.0342,
+  "n_with_both_timestamps": 2769,
+  "share_negative_resolution": 0.493,
+  "naive_delta_hours": {
+    "mean": -0.0577,
+    "std": 9.5641,
+    "min": -23.2333,
+    "max": 23.4667
+  },
+  "status_counts": {
+    "Closed": 2769,
+    "Open": 2819,
+    "Pending Customer Response": 2881
+  },
+  "csat": {
+    "n": 2769,
+    "mean": 2.9913,
+    "std": 1.407,
+    "only_in_status": [
+      "Closed"
+    ]
+  },
+  "naive_table": [
+    {
+      "dimension": "Ticket Channel",
+      "value": "Chat",
+      "n": 2073,
+      "n_closed": 674,
+      "csat_mean": 3.0831,
+      "naive_hours_mean": 0.1959
+    },
+    {
+      "dimension": "Ticket Channel",
+      "value": "Email",
+      "n": 2143,
+      "n_closed": 720,
+      "csat_mean": 2.9639,
+      "naive_hours_mean": 0.0128
+    },
+    {
+      "dimension": "Ticket Channel",
+      "value": "Phone",
+      "n": 2132,
+      "n_closed": 691,
+      "csat_mean": 2.9522,
+      "naive_hours_mean": -0.557
+    },
+    {
+      "dimension": "Ticket Channel",
+      "value": "Social media",
+      "n": 2121,
+      "n_closed": 684,
+      "csat_mean": 2.9693,
+      "naive_hours_mean": 0.1225
+    },
+    {
+      "dimension": "Ticket Priority",
+      "value": "Critical",
+      "n": 2129,
+      "n_closed": 726,
+      "csat_mean": 2.9587,
+      "naive_hours_mean": -0.2007
+    },
+    {
+      "dimension": "Ticket Priority",
+      "value": "High",
+      "n": 2085,
+      "n_closed": 705,
+      "csat_mean": 2.983,
+      "naive_hours_mean": -0.0688
+    },
+    {
+      "dimension": "Ticket Priority",
+      "value": "Low",
+      "n": 2063,
+      "n_closed": 644,
+      "csat_mean": 3.0528,
+      "naive_hours_mean": 0.3852
+    },
+    {
+      "dimension": "Ticket Priority",
+      "value": "Medium",
+      "n": 2192,
+      "n_closed": 694,
+      "csat_mean": 2.9769,
+      "naive_hours_mean": -0.3079
+    },
+    {
+      "dimension": "Ticket Type",
+      "value": "Billing inquiry",
+      "n": 1634,
+      "n_closed": 544,
+      "csat_mean": 3.0276,
+      "naive_hours_mean": -0.2078
+    },
+    {
+      "dimension": "Ticket Type",
+      "value": "Cancellation request",
+      "n": 1695,
+      "n_closed": 516,
+      "csat_mean": 3.0291,
+      "naive_hours_mean": -0.1659
+    },
+    {
+      "dimension": "Ticket Type",
+      "value": "Product inquiry",
+      "n": 1641,
+      "n_closed": 533,
+      "csat_mean": 3.0169,
+      "naive_hours_mean": -0.2432
+    },
+    {
+      "dimension": "Ticket Type",
+      "value": "Refund request",
+      "n": 1752,
+      "n_closed": 596,
+      "csat_mean": 2.9346,
+      "naive_hours_mean": 0.218
+    },
+    {
+      "dimension": "Ticket Type",
+      "value": "Technical issue",
+      "n": 1747,
+      "n_closed": 580,
+      "csat_mean": 2.9586,
+      "naive_hours_mean": 0.0665
+    }
+  ],
+  "association_tests": [
+    {
+      "variable": "ticket_channel",
+      "test": "kruskal",
+      "n_groups": 4,
+      "statistic": 3.8471,
+      "p_value": 0.2785
+    },
+    {
+      "variable": "ticket_channel",
+      "test": "chi2",
+      "n_groups": 4,
+      "statistic": 11.7315,
+      "p_value": 0.4675
+    },
+    {
+      "variable": "ticket_priority",
+      "test": "kruskal",
+      "n_groups": 4,
+      "statistic": 1.7372,
+      "p_value": 0.6287
+    },
+    {
+      "variable": "ticket_priority",
+      "test": "chi2",
+      "n_groups": 4,
+      "statistic": 12.5893,
+      "p_value": 0.3996
+    },
+    {
+      "variable": "ticket_type",
+      "test": "kruskal",
+      "n_groups": 5,
+      "statistic": 2.1988,
+      "p_value": 0.6993
+    },
+    {
+      "variable": "ticket_type",
+      "test": "chi2",
+      "n_groups": 5,
+      "statistic": 19.2381,
+      "p_value": 0.2565
+    },
+    {
+      "variable": "customer_gender",
+      "test": "kruskal",
+      "n_groups": 3,
+      "statistic": 0.9385,
+      "p_value": 0.6255
+    },
+    {
+      "variable": "customer_gender",
+      "test": "chi2",
+      "n_groups": 3,
+      "statistic": 12.0708,
+      "p_value": 0.1481
+    },
+    {
+      "variable": "product_purchased",
+      "test": "kruskal",
+      "n_groups": 42,
+      "statistic": 36.577,
+      "p_value": 0.6674
+    },
+    {
+      "variable": "product_purchased",
+      "test": "chi2",
+      "n_groups": 42,
+      "statistic": 175.6691,
+      "p_value": 0.2526
+    },
+    {
+      "variable": "ticket_subject",
+      "test": "kruskal",
+      "n_groups": 16,
+      "statistic": 10.2053,
+      "p_value": 0.8066
+    },
+    {
+      "variable": "ticket_subject",
+      "test": "chi2",
+      "n_groups": 16,
+      "statistic": 47.6495,
+      "p_value": 0.8757
+    },
+    {
+      "variable": "customer_age",
+      "test": "spearman",
+      "statistic": -0.004,
+      "p_value": 0.8315
+    },
+    {
+      "variable": "frt_hour",
+      "test": "spearman",
+      "statistic": -0.0404,
+      "p_value": 0.0335
+    }
+  ],
+  "negative_control": {
+    "task": "Ticket Description -> Ticket Type",
+    "accuracy": 0.1966,
+    "accuracy_std": 0.0064,
+    "fold_accuracies": [
+      0.1924,
+      0.206,
+      0.2025,
+      0.1907,
+      0.1914
+    ],
+    "majority_share": 0.2069,
+    "majority_class": "Refund request",
+    "n_classes": 5,
+    "chance": 0.2,
+    "config": {
+      "cv": "StratifiedKFold(5, shuffle=True, random_state=42)",
+      "tfidf": {
+        "ngram_range": [
+          1,
+          2
+        ],
+        "min_df": 2,
+        "sublinear_tf": true,
+        "max_features": 300000
+      },
+      "logreg": {
+        "C": 5,
+        "max_iter": 2000
+      },
+      "text_normalization": "app.normalize"
+    }
+  },
+  "verdict": "As diferenças entre canais, prioridades e tipos cabem no ruído; tempo de resolução não é mensurável neste arquivo.",
+  "figure": "artifacts/figures/ds1_time_window.png"
+}

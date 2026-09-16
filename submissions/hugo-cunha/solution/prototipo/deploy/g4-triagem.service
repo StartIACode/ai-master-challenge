@@ -1,0 +1,17 @@
+[Unit]
+Description=G4 Triagem N1-IA/N2/N3 (prototipo de candidatura)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/g4-triagem
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/g4-triagem/.venv/bin/uvicorn app.api:app --host 127.0.0.1 --port 8010 --workers 1
+Restart=on-failure
+RestartSec=5
+MemoryMax=512M
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
