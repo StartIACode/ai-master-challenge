@@ -1,0 +1,28 @@
+[project]
+name = "g4-triagem"
+version = "0.1.0"
+description = "Prototipo de triagem N1-IA / N2 / N3 - G4 AI Master Challenge 002"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "scikit-learn>=1.5",
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "scipy>=1.13",
+  "joblib>=1.4",
+  "matplotlib>=3.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
