@@ -92,7 +92,7 @@ def test_suggest_classes_never_auto_route_even_at_max_confidence():
 def test_auto_route_lands_on_class_queue_at_n1():
     d = decide("Hardware", 0.93, [])
     assert d.decision == "auto_route" and d.level == "N1" and d.queue == "Hardware"
-    assert "0.93" in d.reason and "0.90" in d.reason
+    assert "0,93" in d.reason and "0,90" in d.reason  # pt-BR decimal comma in user-facing reasons
 
 
 def test_risk_wins_over_low_confidence_and_miscellaneous():

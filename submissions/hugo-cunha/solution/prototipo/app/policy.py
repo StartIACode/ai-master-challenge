@@ -79,6 +79,13 @@ QUEUE_HUMAN_REQUIRED = "N2-humano-obrigatorio"
 QUEUE_HUMAN_TRIAGE = "N2-triagem"
 
 
+def _fmt(x: float) -> str:
+    """pt-BR display of a probability: comma decimal; 0.995+ shows as '0,99+' instead of a misleading '1,00'."""
+    if x >= 0.995:
+        return "0,99+"
+    return f"{x:.2f}".replace(".", ",")
+
+
 @dataclass
 class Decision:
     """Outcome of the gate for one ticket."""
@@ -126,7 +133,7 @@ def decide(
             "human_triage",
             "N2",
             QUEUE_HUMAN_TRIAGE,
-            f"confiança {confidence:.2f} abaixo do limiar {threshold:.2f}",
+            f"confiança {_fmt(confidence)} abaixo do limiar {_fmt(threshold)}",
         )
 
     if category in AUTO:
@@ -134,7 +141,7 @@ def decide(
             "auto_route",
             "N1",
             category,
-            f"confiança {confidence:.2f} ≥ {threshold:.2f} e classe auto-roteável: {REASONS[category]}",
+            f"confiança {_fmt(confidence)} ≥ {_fmt(threshold)} e classe auto-roteável: {REASONS[category]}",
         )
 
     # category in SUGGEST
@@ -142,7 +149,7 @@ def decide(
         "suggest",
         "N2",
         category,
-        f"confiança {confidence:.2f} ≥ {threshold:.2f}, mas {REASONS[category]}",
+        f"confiança {_fmt(confidence)} ≥ {_fmt(threshold)}, mas {REASONS[category]}",
     )
 
 

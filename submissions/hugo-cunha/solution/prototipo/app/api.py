@@ -46,7 +46,7 @@ from app.board import ACTIONS, Board
 from app.closure import ILLUSTRATIVE_NOTE, build_kb_entry, closure_options, kb_examples, validate_closure
 from app.drafts import draft_for
 from app.model import TriageModel
-from app.policy import DEFAULT_THRESHOLD, decide, risk_flags
+from app.policy import AUTO, SUGGEST, DEFAULT_THRESHOLD, decide, risk_flags
 from app.replay import HoldoutReplay
 
 log = logging.getLogger("g4.api")
@@ -106,9 +106,37 @@ class ActionBody(BaseModel):
     action: str
 
 
+
+def _pick_examples(replay: HoldoutReplay) -> list[dict]:
+    """Three representative hold-out tickets for the demo, chosen deterministically (seed EXAMPLES_SEED):
+    (1) an auto-routable class with high confidence and useful neighbors, (2) a 'suggest' class with high
+    confidence, (3) a low-confidence ticket that goes to human triage. Falls back to the first N rows."""
+    order = replay.sample(replay.total, seed=EXAMPLES_SEED)
+    picks: list[dict] = []
+    wanted = [
+        lambda r: r["pred_category"] in AUTO and r["confidence"] >= 0.95 and r["pred_category"] == r["true_category"]
+        and r["nn_sims"] and r["nn_sims"][0] >= 0.5 and len(r["text"].split()) >= 12,
+        lambda r: r["pred_category"] in SUGGEST and r["confidence"] >= 0.90 and len(r["text"].split()) >= 12,
+        lambda r: r["confidence"] < 0.80 and len(r["text"].split()) >= 12,
+    ]
+    for cond in wanted:
+        for r in order:
+            if cond(r) and all(r["id"] != q["id"] for q in picks):
+                picks.append(r)
+                break
+    if len(picks) < N_EXAMPLES:
+        for r in order:
+            if all(r["id"] != q["id"] for q in picks):
+                picks.append(r)
+            if len(picks) >= N_EXAMPLES:
+                break
+    return picks[:N_EXAMPLES]
+
 # --------------------------------------------------------------------------- lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     st = app.state
     st.model = None
     try:
@@ -125,7 +153,7 @@ async def lifespan(app: FastAPI):
     st.metrics = _read_json(METRICS_JSON)
     st.ds1 = _read_json(DS1_JSON)
     st.policy = _read_json(POLICY_JSON)
-    st.examples = st.replay.sample(N_EXAMPLES, seed=EXAMPLES_SEED) if st.replay else []
+    st.examples = _pick_examples(st.replay) if st.replay else []
     try:
         yield
     finally:

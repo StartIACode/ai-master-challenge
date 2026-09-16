@@ -36,7 +36,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import resource
+try:
+    import resource  # Unix only; the script still trains without it
+except ImportError:  # pragma: no cover - Windows
+    resource = None
 import sys
 import time
 from datetime import datetime, timezone
@@ -127,6 +130,8 @@ def sha256(path: Path) -> str:
 
 
 def peak_rss_mb() -> float:
+    if resource is None:
+        return 0.0
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform != "darwin":  # Linux reports kilobytes, macOS bytes
         rss *= 1024
