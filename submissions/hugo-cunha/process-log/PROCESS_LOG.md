@@ -21,6 +21,8 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 20:10–21:05 | Construção, onda 3 | (IA) | Página única (7 abas), verificação no navegador com 16 screenshots, revisor achou 1 problema alto (reset do formulário), corrigido e reaprovado; correções leves do revisor do backend aplicadas. |
 | 21:00 | Pedido de status | P04 | **[Hugo]** Cobrou status; recebeu o quadro do que estava feito, em andamento e pendente. |
 | 21:05–21:40 | Prova de setup, deploy, documentação | (IA) | Clone limpo do fork cronometrado (2 min 00 s até 105 testes verdes); deploy na VPS falhou na primeira tentativa (Python do uv dentro de `/root`, inacessível ao `www-data`), script corrigido e reexecutado; README no template; este log; PDF de evidências. |
+| 22:10 | Revisão do Hugo sobre o protótipo publicado | P05 | **[Hugo]** Com um print do Painel: tirar 3 abas técnicas e 4 cards, trabalhar em português (modelo treinado em pt-BR), medir o TMA por nível pelo tempo do card em cada coluna, renomear contadores confusos, arrumar os botões do fechamento. |
+| 22:15–23:10 | Segunda rodada de construção | (IA) | Tradução offline do Dataset 2 para pt-BR (tradutor Argos/CTranslate2; 1ª tentativa a 3 tickets/s, reescrita para lotes a 33 tickets/s) e retreino; backend com TMA por nível (relógio por coluna, 8 testes novos); interface com 4 abas, painel do gestor, rótulos pt-BR; revisor independente; redeploy. |
 | depois | PR | (IA) | Abertura do PR após o OK do Hugo. |
 
 ## 3. Como decompus o problema antes de promptar
@@ -49,6 +51,10 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 12 | A tabela de política em 375 px saiu com linhas de até 161 px de altura porque uma regra de largura mínima espremia a coluna Motivo. | Screenshot em mobile. | Regra removida, largura mínima só na última coluna, screenshot refeito. |
 | 13 | A política dizia que Storage tinha "a melhor precisão entre as classes"; o JSON mostra Purchase acima (0,96 contra 0,94). | Agente dos documentos cruzou o texto com `per_class`. | Motivo corrigido para "entre as classes auto-roteáveis"; `policy.json` e a proposta regenerados. |
 | 14 | O deploy na VPS instalou o Python gerenciado pelo `uv` em `/root/.local`, e o serviço roda como `www-data`: `Permission denied` em loop de reinício. O script seguiu como se tivesse dado certo porque a verificação era um `sleep 3` e um `curl`. | `systemctl status` e `journalctl` na VPS. | Python instalado em `/opt/uv-python`, venv recriado, espera ativa de até 90 s pelo `/api/health`; deploy refeito. |
+| 15 | O tradutor offline verteu "windows update" para "atualização das janelas" no primeiro teste. | Leitura da amostra antes de rodar os 47 mil. | Lista de termos de produto protegidos (Windows, Outlook, VPN, PO…) preservada na tradução. |
+| 16 | A primeira rodada de tradução usou o pipeline completo do Argos (segmentação por stanza) e rendia 3 tickets/s: mais de 4 horas. | Medição de ritmo no primeiro minuto. | Script reescrito para chamar o motor CTranslate2 direto, em lotes de 64 e pedaços de 20 palavras: 33 tickets/s, ~25 min. |
+| 17 | Na verificação da nova interface, o agente "recarregou" a página mudando só o fragmento da URL e validou plural errado nos contadores com o JavaScript antigo. | O texto dos KPIs não mudava. | Recarga com query string e verificação refeita; helper de plural. |
+| 18 | Com a API fora do ar, o Painel continuava tentando atualizar a cada 5 s e repetia o aviso. | Revisor independente reproduziu com fetch rejeitado. | O relógio de atualização para quando a API falha e volta ao trocar de aba ou clicar em Atualizar. |
 
 ## 5. O que eu adicionei que a IA sozinha não faria **[Hugo]**
 
@@ -57,9 +63,10 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 - **Recomendar API em vez de modelo próprio** e pedir a conta: dezenas de dólares por mês contra R$ 13 a 17 mil por ano de GPU própria.
 - **As decisões de escopo**: um só runtime Python (em vez de PHP + React), LLM desligado na demo, VPS como último passo, tom de um parágrafo sobre o Dataset 1 em vez de manchete.
 - **A postura de time**: arquiteto de software e gerente de operações na mesma mesa. O arquiteto exigiu contratos, testes e reprodutibilidade; o gerente exigiu que a IA nunca responda ao cliente nem feche ticket, e que o painel mostre erros na tela.
+- **A revisão de produto sobre o protótipo publicado (P05):** tirar o que era técnico demais para um Diretor (ponto de operação, política por classe, similaridade, cards de modelo e controle negativo), exigir português de ponta a ponta, e definir o TMA como o tempo que o card fica em cada coluna do board, medido, em vez de "não mensurável". A IA tinha entregado um painel para avaliador; o gestor pediu um painel para operação.
 
 ## 6. Iterações
 
-- Prompts meus: P01 a P04 (avaliar, propor, decidir e cobrar status) e 3 workflows multiagente: avaliação (9 agentes), reconciliação da minha proposta (7 agentes) e construção com revisores (10 agentes, 2 rodadas de revisão na interface).
+- Prompts meus: P01 a P05 (avaliar, propor, decidir, cobrar status e revisar o produto) e 4 workflows multiagente: avaliação (9 agentes), reconciliação da minha proposta (7 agentes) e construção com revisores (10 agentes, 2 rodadas de revisão na interface) e segunda rodada após a revisão do Hugo (3 agentes).
 - Commits no branch, um por etapa fechada e testada (34 → 104 → 105 testes); histórico completo em `git log`.
 - Revisão independente do backend (aprovada, 5 observações leves aplicadas) e da interface (1 problema alto corrigido, segunda revisão aprovada com 4 observações leves aplicadas).

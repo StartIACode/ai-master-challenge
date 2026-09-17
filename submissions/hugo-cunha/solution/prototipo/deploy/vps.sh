@@ -13,7 +13,7 @@ test -f "$HERE/models/index.pkl" || { echo "treine antes: make train"; exit 1; }
 echo "== 1/6 sincronizando código e artefatos"
 ssh "$HOST" "mkdir -p $APP"
 rsync -az --delete \
-  --exclude '.venv' --exclude 'data/*.csv' --exclude '__pycache__' --exclude '*.db*' --exclude '.pytest_cache' \
+  --exclude '.venv' --exclude 'data/*.csv' --exclude 'data/*.partial.jsonl' --exclude '__pycache__' --exclude '*.db*' --exclude '.pytest_cache' \
   "$HERE/" "$HOST:$APP/"
 rsync -az "$HERE/models/index.pkl" "$HOST:$APP/models/index.pkl"
 

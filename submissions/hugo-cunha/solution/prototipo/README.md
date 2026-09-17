@@ -1,6 +1,6 @@
 # Protótipo — Triagem N1-IA / N2 / N3
 
-Um processo Python (FastAPI + página única) que roda o classificador de tickets sobre os **47.837 tickets reais** do Dataset 2 e mostra a triagem N1-IA → N2 → N3 funcionando: board de filas, indicadores, ponto de operação (limiar), política por classe, ticket novo, template de fechamento e a prévia da similaridade após a padronização.
+Um processo Python (FastAPI + página única) que roda o classificador de tickets sobre os **47.837 tickets reais** do Dataset 2, traduzidos para pt-BR, e mostra a triagem N1-IA → N2 → N3 funcionando em 4 abas: **Painel** (indicadores do gestor e TMA por nível medido no board), **Board** (filas N1-IA / N2 / N3 com tickets reais), **Novo ticket** (triagem de texto livre) e **Fechamento padronizado** (template obrigatório que alimenta a base de conhecimento).
 
 ## Rodar em 2 comandos
 
@@ -11,7 +11,9 @@ make setup   # uv sync + extrai os CSVs (CC0, versionados em data/) e confere os
 make run     # treina se models/index.pkl não existir (~75 s) e sobe em http://localhost:8010
 ```
 
-Outros alvos: `make train` (regenera modelo, `artifacts/metrics.json`, `artifacts/ds1_metrics.json` e figuras), `make test` (105 testes), `make clean`.
+Outros alvos: `make train` (regenera modelo, `artifacts/metrics.json`, `artifacts/ds1_metrics.json` e figuras), `make test` (113 testes), `make clean`.
+
+**Idioma.** O Dataset 2 é em inglês; a decisão de trabalhar em português levou a uma tradução automática offline única (`scripts/traduzir_ds2.py`, Argos/CTranslate2, ~25 min num Mac), versionada em `data/ds2_pt.csv.gz` com `data/ds2_pt.meta.json`. `train.py` usa o corpus em português quando esse arquivo existe; apague-o para treinar em inglês. Termos de produto (Windows, Outlook, VPN…) são preservados; o texto-fonte já vinha sem pontuação e sem stopwords, então a tradução é telegráfica.
 
 Sem `uv`:
 
@@ -29,24 +31,24 @@ Prova de setup em clone limpo (Mac M-series, 16/09/2026): `git clone` + `make se
 
 | Real (medido no hold-out de 9.490 tickets nunca vistos no treino) | Simulado (rotulado na tela) |
 |---|---|
-| Texto dos cards, classe prevista **e** verdadeira, confiança, top-3, 3 tickets similares com similaridade | Hora de chegada (replay em lotes), nomes dos responsáveis (rodízio) |
-| Cobertura e acerto por limiar e por classe, matriz de confusão, calibração | Minutos de triagem e custo-hora da calculadora (campos editáveis, selo SIMULAÇÃO) |
-| Contadores do board: % N1-IA, % N2, % N3, acertos, "IA errou" | Conteúdo dos fechamentos na aba Similaridade (selo EXEMPLO ILUSTRATIVO) |
-| Diagnóstico do Dataset 1 (`artifacts/ds1_metrics.json`) | TMA por nível: não existe; card "não mensurável nos datasets" |
+| Texto dos cards (tradução pt-BR de tickets reais), classe prevista **e** verdadeira, confiança, top-3, 3 tickets similares com similaridade | Chegada em lotes (replay) |
+| Cobertura e acerto por limiar e por classe, matriz de confusão, calibração (`artifacts/metrics.json`) | Hora de chegada e nomes dos responsáveis (rodízio) |
+| Contadores do board: tickets recebidos, % tratados pela IA (N1-IA), % delegados ao humano (N2), % escalados (N3), acerto da IA, "IA errou" | Entrada da base de conhecimento gerada pelo formulário de fechamento (validada, não persistida) |
+| **TMA por nível** = tempo médio que os cards ficaram em cada coluna do board nesta sessão (selo MEDIDO NO BOARD) | Datasets não têm tempos reais: o TMA medido reflete a operação do board na demonstração |
 
-Regra no código: a IA nunca responde ao cliente nem fecha ticket. `auto_route` só sai para Access, Storage e Hardware sem sinal de risco e com confiança ≥ limiar (padrão 0,90). `Resolver` é sempre um clique humano.
+Regra no código: a IA nunca responde ao cliente nem fecha ticket. `auto_route` só sai para Acesso, Armazenamento e Hardware (chaves `Access`, `Storage`, `Hardware` na API) sem sinal de risco e com confiança ≥ limiar (padrão 0,90; seletor 0,80 / 0,90 / 0,95 no Board). `Resolver` é sempre um clique humano. As classes têm chave em inglês na API e rótulo em português na tela.
 
 ## Estrutura
 
 ```
 app/        normalize.py · policy.py (gate, sinais de risco) · drafts.py · model.py · replay.py · board.py (SQLite) · closure.py · api.py
-scripts/    train.py (modelo + métricas + figuras) · diagnostico_ds1.py
+scripts/    train.py (modelo + métricas + figuras) · diagnostico_ds1.py · traduzir_ds2.py (tradução única, dependência opcional)
 artifacts/  metrics.json · ds1_metrics.json · policy.json · holdout_pred.csv.gz · figures/*.png   (versionados; regenerados por make train)
 models/     index.pkl (21 MB, não versionado; make train)
 web/        index.html · style.css · app.js (sem build, sem CDN de JS; Google Fonts com fallback)
-tests/      105 testes (política, normalização, métricas, board, fechamento, API)
+tests/      113 testes (política, normalização, métricas, board com TMA por nível, fechamento, API)
 deploy/     vps.sh · g4-triagem.service · zz-g4-triagem.conf (Apache + Let's Encrypt)
-data/       ds1.zip · ds2.zip · SHA256SUMS · DATA_LICENSE.md
+data/       ds1.zip · ds2.zip · SHA256SUMS · DATA_LICENSE.md · ds2_pt.csv.gz (+ .meta.json)
 ```
 
 ## API
@@ -59,6 +61,6 @@ Todos os números de `solution/diagnostico.md`, `solution/proposta.md` e do READ
 
 ## Limitações
 
-- O modelo foi treinado em tickets de TI em inglês, pré-processados; texto fora desse domínio deve sair com baixa confiança e ir para N2 (é o comportamento desejado).
+- O modelo foi treinado em tickets de TI traduzidos automaticamente para pt-BR a partir de texto pré-processado (sem pontuação/stopwords); texto fora desse domínio deve sair com baixa confiança e ir para N2 (é o comportamento desejado). A tradução é telegráfica e mistura formas pt-PT/pt-BR em alguns termos.
 - Estado do board em SQLite local (`board.db`), sem autenticação: é um protótipo de demonstração. `POST /api/reset` zera tudo.
 - Sem LLM: os rascunhos são macros por classe.

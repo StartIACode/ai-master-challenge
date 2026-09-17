@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 
 PROTO = pathlib.Path(__file__).resolve().parents[1]
 TRIAGE_KEYS = {"category", "confidence", "top3", "neighbors", "risk_flags", "decision", "level", "queue", "reason", "draft"}
-TICKET_KEYS = TRIAGE_KEYS | {"id", "text", "true_category", "assigned_to", "status", "created_at", "resolved_at", "ai_wrong"}
+TICKET_KEYS = TRIAGE_KEYS | {"id", "text", "true_category", "assigned_to", "status", "created_at", "resolved_at", "ai_wrong",
+                             "level_entered_at", "t_n1", "t_n2", "t_n3", "finished_at"}
 
 
 @pytest.fixture(scope="module")
@@ -47,6 +48,8 @@ def test_replay_adds_to_board(client):
     s = client.get("/api/board").json(); assert s["counters"]["total"] == 10
     t = r.json()["tickets"][0]; a = client.post(f"/api/tickets/{t['id']}/action", json={"action": "resolve"})
     assert a.status_code == 200 and client.get("/api/board").json()["resolved"] == 1
+    tma = client.get("/api/board").json()["counters"]["tma"][t["level"]]
+    assert tma["n"] == 1 and tma["avg_s"] is not None  # resolving closes the stay and feeds the TMA of that level
 
 
 def test_no_auto_route_for_suggest_classes(client):
@@ -70,14 +73,15 @@ def test_health_keys(client):
 
 
 def test_triage_keys_and_auto_route_with_draft(client):
-    j = client.post("/api/triage", json={"text": "my mailbox is full and I cannot receive emails", "threshold": 0.5}).json()
+    # pt-BR corpus text: predicted Storage with p≈0,98 (see scripts/traduzir_ds2.py)
+    j = client.post("/api/triage", json={"text": "caixa de correio quase cheia por favor liberar espaço", "threshold": 0.5}).json()
     assert set(j) == TRIAGE_KEYS
     assert j["category"] == "Storage" and j["decision"] == "auto_route" and j["level"] == "N1" and j["draft"]
     assert len(j["top3"]) == 3 and len(j["neighbors"]) == 3 and j["risk_flags"] == []
 
 
 def test_triage_threshold_changes_decision(client):
-    text = "my mailbox is full and I cannot receive emails"
+    text = "caixa de correio quase cheia por favor liberar espaço"
     low = client.post("/api/triage", json={"text": text, "threshold": 0.5}).json()
     high = client.post("/api/triage", json={"text": text, "threshold": 0.99}).json()
     assert low["category"] == high["category"]
@@ -140,10 +144,15 @@ def test_board_and_reset(client):
     client.post("/api/reset")
     s = client.get("/api/board").json()
     assert set(s) == {"N1", "N2", "N3", "resolved", "counters"} and s["counters"]["total"] == 0
-    assert set(s["counters"]) >= {"total", "n1", "n2", "n3", "resolved", "ai_wrong", "ai_correct", "ai_evaluated", "by_decision"}
+    assert set(s["counters"]) >= {"total", "n1", "n2", "n3", "resolved", "ai_wrong", "ai_correct", "ai_evaluated", "by_decision", "tma"}
+    assert set(s["counters"]["tma"]) == {"N1", "N2", "N3", "open"}
+    assert s["counters"]["tma"]["N1"] == {"avg_s": None, "n": 0} and s["counters"]["tma"]["open"] == {"N1": 0, "N2": 0, "N3": 0}
     client.post("/api/replay/next", json={"n": 30})
     s = client.get("/api/board").json()
     assert s["counters"]["total"] == 30 and len(s["N1"]) + len(s["N2"]) + len(s["N3"]) == 30
+    tma = s["counters"]["tma"]
+    assert tma["open"] == {"N1": len(s["N1"]), "N2": len(s["N2"]), "N3": len(s["N3"])} and tma["N1"]["n"] == 0
+    assert all(t["level_entered_at"] == t["created_at"] and t["finished_at"] is None for t in s["N1"] + s["N2"])
     assert sum(s["counters"]["by_decision"].values()) == 30
     assert client.get("/api/board", params={"limit": 2}).json()["N2"].__len__() <= 2
     assert client.post("/api/reset").json() == {"ok": True}
@@ -152,7 +161,7 @@ def test_board_and_reset(client):
 
 def test_artifact_endpoints(client):
     m = client.get("/api/metrics").json()
-    assert m["accuracy"] >= 0.85 and len(m["thresholds"]) == 50
+    assert m["accuracy"] >= 0.84 and len(m["thresholds"]) == 50  # pt-BR corpus floor (see tests/test_metrics.py)
     p = client.get("/api/policy").json()
     assert len(p) == 8 and {"category", "action", "reason"} <= set(p[0])
     d = client.get("/api/ds1")

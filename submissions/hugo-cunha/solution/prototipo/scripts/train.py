@@ -60,7 +60,12 @@ sys.path.insert(0, str(PROTO))
 
 from app.policy import AUTO, CLASSES, DEFAULT_THRESHOLD, policy_table, risk_flags  # noqa: E402
 
-DATA = PROTO / "data" / "all_tickets_processed_improved_v3.csv"
+DATA_EN = PROTO / "data" / "all_tickets_processed_improved_v3.csv"
+DATA_PT = PROTO / "data" / "ds2_pt.csv.gz"  # pt-BR translation produced by scripts/traduzir_ds2.py
+# Decision (Hugo, 16/09): the demo and the classifier work in Portuguese. When the translated file
+# exists it is the training corpus; otherwise the original English CSV is used.
+DATA = DATA_PT if DATA_PT.exists() else DATA_EN
+LANGUAGE = "pt-BR (tradução automática offline do Dataset 2)" if DATA is DATA_PT else "en"
 ART = PROTO / "artifacts"
 FIG_DIR = ART / "figures"
 MODELS = PROTO / "models"
@@ -581,6 +586,8 @@ def main(run_cv5: bool = True) -> dict:
 
     trained_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     config = {
+        "language": LANGUAGE,
+        "data_file": DATA.name,
         "dataset": {"file": DATA.name, "sha256": sha256(DATA), "text_column": TEXT_COL, "label_column": LABEL_COL},
         "text_normalization": "none: dataset text is pre-processed; app.normalize applies to free text in the API",
         "dedup_key": f"first {DEDUP_WORDS} words, keep first occurrence",

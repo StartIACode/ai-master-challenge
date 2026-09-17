@@ -26,11 +26,8 @@
     <nav class="tabs" role="tablist" aria-label="Seções do protótipo">
       <button type="button" role="tab" id="tabbtn-painel" data-tab="painel" aria-controls="tab-painel" aria-selected="true" tabindex="0">Painel</button>
       <button type="button" role="tab" id="tabbtn-board" data-tab="board" aria-controls="tab-board" aria-selected="false" tabindex="-1">Board</button>
-      <button type="button" role="tab" id="tabbtn-operacao" data-tab="operacao" aria-controls="tab-operacao" aria-selected="false" tabindex="-1">Ponto de operação</button>
-      <button type="button" role="tab" id="tabbtn-politica" data-tab="politica" aria-controls="tab-politica" aria-selected="false" tabindex="-1">Política por classe</button>
       <button type="button" role="tab" id="tabbtn-novo" data-tab="novo" aria-controls="tab-novo" aria-selected="false" tabindex="-1">Novo ticket</button>
       <button type="button" role="tab" id="tabbtn-fechamento" data-tab="fechamento" aria-controls="tab-fechamento" aria-selected="false" tabindex="-1">Fechamento padronizado</button>
-      <button type="button" role="tab" id="tabbtn-similaridade" data-tab="similaridade" aria-controls="tab-similaridade" aria-selected="false" tabindex="-1">Similaridade após padronização</button>
     </nav>
   </div>
 </header>
@@ -42,33 +39,15 @@
     <div class="section-head">
       <div>
         <h2>Painel</h2>
-        <p class="lead">Contadores medidos no replay de tickets reais do hold-out (Dataset 2, <span id="lead-holdout">—</span> tickets). A IA classifica, prioriza e roteia; humano responde e fecha.</p>
+        <p class="lead">A IA classifica, prioriza e roteia; humano responde e fecha.</p>
       </div>
       <button type="button" class="btn btn-ghost" id="btn-refresh-painel">Atualizar</button>
     </div>
     <div class="kpis" id="kpis" aria-live="polite"></div>
-    <div class="cards-2">
-      <article class="card">
-        <header class="card-head"><h3>TMA real: não mensurável nos datasets</h3><span class="badge badge-real">REAL</span></header>
-        <div id="card-tma"></div>
-      </article>
-      <article class="card">
-        <header class="card-head"><h3>Controle negativo</h3><span class="badge badge-real">REAL</span></header>
-        <div id="card-controle"></div>
-      </article>
-      <article class="card">
-        <header class="card-head"><h3>Modelo (Dataset 2)</h3><span class="badge badge-real">REAL</span></header>
-        <div id="card-modelo"></div>
-      </article>
-      <article class="card">
-        <header class="card-head"><h3>Gate no limiar atual</h3><span class="badge badge-real">REAL</span></header>
-        <div id="card-gate"></div>
-      </article>
-    </div>
     <p class="legend">
-      <span class="badge badge-real">REAL</span> medido nos dados ·
-      <span class="badge badge-sim">SIMULAÇÃO</span> premissa nomeada e editável ·
-      <span class="badge badge-ilustrativo">EXEMPLO ILUSTRATIVO</span> como ficaria após a padronização
+      <span class="badge badge-real">REAL</span> medido nos tickets reais do hold-out ·
+      <span class="badge badge-real">MEDIDO NO BOARD</span> cronometrado nesta sessão ·
+      <span class="badge badge-sim">SIMULADO</span> chegada dos tickets e nomes dos responsáveis
     </p>
   </section>
 
@@ -84,14 +63,21 @@
       <button type="button" class="btn btn-primary" id="btn-next">Próximo lote (10)</button>
       <button type="button" class="btn" id="btn-auto" aria-pressed="false">Auto a cada 3 s: desligado</button>
       <button type="button" class="btn btn-ghost" id="btn-reset">Reiniciar</button>
-      <span class="chip">limiar <strong class="threshold-readout">0,90</strong> <button type="button" class="linkbtn" data-goto="operacao">ajustar</button></span>
+      <label class="chip chip-select" for="threshold-select">Limiar de confiança
+        <select id="threshold-select" aria-describedby="threshold-help">
+          <option value="0.80">0,80</option>
+          <option value="0.90" selected>0,90</option>
+          <option value="0.95">0,95</option>
+        </select>
+      </label>
+      <span class="visually-hidden" id="threshold-help">Confiança mínima para a IA agir sozinha; vale para os próximos lotes do replay e para a triagem de novo ticket.</span>
       <span class="chip" id="replay-pos">0 de —</span>
       <span class="chip" id="resolved-chip">resolvidos por humano: 0</span>
     </div>
     <div class="board" id="board">
       <div class="col" data-level="N1">
         <h3>N1-IA <span class="count" id="count-N1">0</span></h3>
-        <p class="col-hint">auto-roteado com rascunho pronto (classes Access, Storage, Hardware)</p>
+        <p class="col-hint">auto-roteado com rascunho pronto (classes Acesso, Armazenamento, Hardware)</p>
         <div class="cards" id="col-N1"></div>
       </div>
       <div class="col" data-level="N2">
@@ -107,51 +93,7 @@
     </div>
   </section>
 
-  <!-- 3. Ponto de operação -->
-  <section id="tab-operacao" class="panel" role="tabpanel" aria-labelledby="tabbtn-operacao" hidden>
-    <div class="section-head">
-      <div>
-        <h2>Ponto de operação</h2>
-        <p class="lead">O classificador devolve, para cada ticket, uma probabilidade de 0 a 1 de que a classe prevista esteja certa. O limiar é o mínimo de confiança para a IA agir sozinha: subir o limiar = menos tickets automáticos e menos erros.</p>
-      </div>
-    </div>
-    <div class="card slider-card">
-      <label for="threshold" class="slider-label">Limiar de confiança <output id="threshold-out" for="threshold">0,90</output></label>
-      <input type="range" id="threshold" min="0.50" max="0.99" step="0.01" value="0.90" aria-describedby="threshold-help">
-      <div class="ticks" aria-hidden="true"><span>0,50</span><span>0,80</span><span>0,90</span><span>0,99</span></div>
-      <p class="hint" id="threshold-help">Vale para os próximos lotes do replay e para a triagem de novo ticket. Os números abaixo vêm de <code>metrics.thresholds</code>, medidos no hold-out.</p>
-    </div>
-    <div class="kpis" id="op-kpis" aria-live="polite"></div>
-    <div class="card">
-      <header class="card-head"><h3>Cobertura × acerto por limiar</h3><span class="badge badge-real">REAL</span></header>
-      <div id="op-chart" class="chart"></div>
-    </div>
-    <div class="card calc">
-      <header class="card-head"><h3>Calculadora de horas e R$</h3><span class="badge badge-sim">SIMULAÇÃO</span></header>
-      <p class="hint">Cobertura útil e taxa de erro vêm do hold-out (reais). Volume, minutos e custo-hora são premissas: edite à vontade.</p>
-      <div class="grid-fields">
-        <label>Tickets por mês <input type="number" id="calc-tickets" value="2500" min="0" step="100"></label>
-        <label>Minutos de triagem humana por ticket <input type="number" id="calc-min" value="3" min="0" step="0.5"></label>
-        <label>Custo-hora do analista N2 (R$) <input type="number" id="calc-hora" value="41" min="0" step="1"></label>
-        <label>Minutos de retrabalho por erro da IA <input type="number" id="calc-erro" value="10" min="0" step="1"></label>
-      </div>
-      <div id="calc-out" aria-live="polite"></div>
-    </div>
-  </section>
-
-  <!-- 4. Política por classe -->
-  <section id="tab-politica" class="panel" role="tabpanel" aria-labelledby="tabbtn-politica" hidden>
-    <div class="section-head">
-      <div>
-        <h2>Política por classe</h2>
-        <p class="lead">O gate decide nesta ordem: sinal de risco → humano obrigatório; confiança ≥ limiar e classe auto-roteável → N1-IA com rascunho; confiança ≥ limiar e classe sensível → N2 confirma a fila; o resto → triagem humana. <span class="badge badge-real">REAL</span></p>
-      </div>
-    </div>
-    <div class="table-wrap" id="policy-table"></div>
-    <p class="hint" id="policy-note"></p>
-  </section>
-
-  <!-- 5. Novo ticket -->
+  <!-- 3. Novo ticket -->
   <section id="tab-novo" class="panel" role="tabpanel" aria-labelledby="tabbtn-novo" hidden>
     <div class="section-head">
       <div>
@@ -168,13 +110,13 @@
       <div class="examples" id="novo-examples"></div>
       <div class="toolbar">
         <button type="submit" class="btn btn-primary" id="btn-triar">Triar</button>
-        <span class="chip">limiar <strong class="threshold-readout">0,90</strong></span>
+        <span class="chip">limiar de confiança <strong class="threshold-readout">0,90</strong></span>
       </div>
     </form>
     <div id="novo-result" aria-live="polite"></div>
   </section>
 
-  <!-- 6. Fechamento padronizado -->
+  <!-- 4. Fechamento padronizado -->
   <section id="tab-fechamento" class="panel" role="tabpanel" aria-labelledby="tabbtn-fechamento" hidden>
     <div class="section-head">
       <div>
@@ -208,34 +150,13 @@
         <label>Produto/sistema afetado <input type="text" name="affected_system"></label>
         <label>Tags <small>(separadas por vírgula)</small> <input type="text" name="tags"></label>
       </div>
-      <div class="toolbar">
+      <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="btn-fechar">Validar fechamento</button>
         <button type="button" class="btn btn-ghost" id="btn-fc-exemplo">Preencher exemplo válido</button>
         <button type="reset" class="btn btn-ghost">Limpar</button>
       </div>
     </form>
     <div id="fechamento-result" aria-live="polite"></div>
-  </section>
-
-  <!-- 7. Similaridade após padronização -->
-  <section id="tab-similaridade" class="panel" role="tabpanel" aria-labelledby="tabbtn-similaridade" hidden>
-    <div class="section-head">
-      <div>
-        <h2>Similaridade após padronização</h2>
-        <p class="lead">Hoje a similaridade recupera tickets parecidos e a fila deles (real). Depois de ~30 dias de fechamentos padronizados, cada similar traria o template preenchido. Esta tela mostra os dois lado a lado.</p>
-      </div>
-    </div>
-    <div class="notice illus" id="sim-note"><span class="badge badge-ilustrativo">EXEMPLO ILUSTRATIVO</span> como ficaria após 30 dias de fechamentos padronizados. A similaridade e as classes são reais; o conteúdo do fechamento não.</div>
-    <div class="toolbar">
-      <label class="inline-field">Ticket de entrada
-        <select id="sim-select"></select>
-      </label>
-      <label class="inline-field">ou id do hold-out
-        <input type="text" id="sim-id" placeholder="ex.: h12" size="10">
-      </label>
-      <button type="button" class="btn btn-ghost" id="btn-sim-load">Carregar</button>
-    </div>
-    <div id="sim-result" aria-live="polite"></div>
   </section>
 
 </main>

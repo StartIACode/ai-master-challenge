@@ -1,5 +1,6 @@
 /* Triagem N1-IA / N2 / N3 — single-page UI (vanilla JS, no build, no CDN).
-   Consumes the API contract in app/api.py (Task 7). All user-facing text is pt-BR.
+   Consumes the API contract in app/api.py. All user-facing text is pt-BR; class names travel
+   in English to/from the API and are translated for display through LABEL_PT.
    Invariant mirrored from the backend: the AI never answers the customer nor closes a ticket. */
 (() => {
   'use strict';
@@ -7,13 +8,29 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  const TABS = ['painel', 'board', 'operacao', 'politica', 'novo', 'fechamento', 'similaridade'];
-  const AUTO = new Set(['Access', 'Storage', 'Hardware']);
+  const TABS = ['painel', 'board', 'novo', 'fechamento'];
+  const LEVELS = ['N1', 'N2', 'N3'];
   const DEFAULT_THRESHOLD = 0.90;
+  const THRESHOLD_OPTIONS = [0.80, 0.90, 0.95];
   const BATCH = 10;
   const AUTO_MS = 3000;
+  const TICK_MS = 5000; // Painel auto-refresh and "nesta coluna há" clocks on the board
   const MAX_CARDS = 30;
-  const PER_CLASS_KEYS = ['0.80', '0.90', '0.95'];
+
+  // Display labels for the API class keys (values sent to the API stay in English).
+  const LABEL_PT = {
+    Access: 'Acesso',
+    'Administrative rights': 'Direitos administrativos',
+    'HR Support': 'Suporte de RH',
+    Hardware: 'Hardware',
+    'Internal Project': 'Projeto interno',
+    Miscellaneous: 'Diversos',
+    Purchase: 'Compras',
+    Storage: 'Armazenamento',
+  };
+  const labelPt = (c) => (c == null || c === '' ? c : (LABEL_PT[c] || String(c)));
+  const CLASS_RE = new RegExp(`\\b(${Object.keys(LABEL_PT).sort((a, b) => b.length - a.length).join('|')})\\b`, 'g');
+  const ptText = (s) => String(s ?? '').replace(CLASS_RE, (m) => LABEL_PT[m]); // policy reasons quote class keys
 
   const DECISION_LABEL = {
     auto_route: 'auto-roteio',
@@ -24,7 +41,7 @@
   const DECISION_LONG = {
     auto_route: 'Auto-roteio (N1-IA): entra na fila da classe com rascunho pronto; o humano responde, edita ou marca "IA errou".',
     suggest: 'Sugerir fila (N2): a IA sugere a fila e o analista confirma antes de entrar; sem rascunho.',
-    human_triage: 'Triagem humana (N2): confiança abaixo do limiar ou classe Miscellaneous; o analista decide a fila.',
+    human_triage: 'Triagem humana (N2): confiança abaixo do limiar ou classe Diversos; o analista decide a fila.',
     human_required: 'Humano obrigatório (N2): sinal de risco no texto; sem rascunho, sem automação.',
   };
   const STATUS_LABEL = { aberto: 'aberto', em_atendimento: 'em atendimento', resolvido: 'resolvido' };
@@ -33,12 +50,13 @@
     health: 'saúde', vip: 'VIP/enterprise', social: 'canal social', reopened: 'reaberto',
   };
   const ACTION_LABEL = { assume: 'assumido', resolve: 'resolvido', escalate: 'escalado ao N3', ai_wrong: 'marcado como "IA errou"' };
+  const TMA_TITLE = { N1: 'TMA N1-IA', N2: 'TMA N2', N3: 'TMA N3' };
 
   const state = {
     threshold: DEFAULT_THRESHOLD,
-    health: null, metrics: null, policy: null, ds1: null, options: null,
+    health: null, options: null,
     examples: [], board: null, position: 0, total: 0,
-    autoTimer: null, busy: false, currentTab: 'painel', simLoaded: false,
+    autoTimer: null, uiTimer: null, busy: false, currentTab: 'painel',
   };
 
   // ------------------------------------------------------------------ helpers
@@ -47,9 +65,18 @@
   const fmtNum = (x, d = 0) => (isNum(x) ? x.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
   const fmtPct = (x, d = 1) => (isNum(x) ? (x * 100).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%' : '—');
   const fmtP = (x) => (isNum(x) ? (x >= 0.995 ? '0,99+' : x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—');
-  const fmtBRL = (x) => (isNum(x) ? x.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }) : '—');
   const ratio = (a, b) => (isNum(a) && isNum(b) && b > 0 ? a / b : null);
   const truncate = (s, n) => { const t = String(s || ''); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
+  const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`;
+  // Seconds -> mm:ss, or h:mm:ss from one hour on; null/NaN -> em dash.
+  function fmtDur(seconds) {
+    if (!isNum(seconds) || seconds < 0) return '—';
+    const t = Math.round(seconds);
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+  }
+  const ageSeconds = (iso) => { const ms = Date.parse(iso || ''); return Number.isFinite(ms) ? Math.max(0, (Date.now() - ms) / 1000) : null; };
 
   async function api(path, opts = {}) {
     const init = { method: opts.method || (opts.body !== undefined ? 'POST' : 'GET'), headers: {} };
@@ -87,28 +114,12 @@
   }
 
   function badge(kind) {
-    const map = { real: ['badge-real', 'REAL'], sim: ['badge-sim', 'SIMULAÇÃO'], ilus: ['badge-ilustrativo', 'EXEMPLO ILUSTRATIVO'] };
+    const map = { real: ['badge-real', 'REAL'], board: ['badge-real', 'MEDIDO NO BOARD'], sim: ['badge-sim', 'SIMULAÇÃO'] };
     const [cls, label] = map[kind] || map.real;
     return `<span class="badge ${cls}">${label}</span>`;
   }
   function kpi(label, value, sub = '', kind = 'real', gold = false) {
     return `<div class="kpi"><div class="k"><span>${label}</span>${badge(kind)}</div><div class="v${gold ? ' gold' : ''}">${value}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-  }
-  function fact(label, value, src = '') {
-    return `<div class="fact"><span>${label}${src ? ` <span class="src">${esc(src)}</span>` : ''}</span><b>${value}</b></div>`;
-  }
-
-  function thresholdRow(t) {
-    const rows = state.metrics && state.metrics.thresholds;
-    if (!rows || !rows.length) return null;
-    let best = rows[0];
-    for (const r of rows) if (Math.abs(r.t - t) < Math.abs(best.t - t)) best = r;
-    return best;
-  }
-  function perClassKey(t) {
-    let best = PER_CLASS_KEYS[0];
-    for (const k of PER_CLASS_KEYS) if (Math.abs(Number(k) - t) < Math.abs(Number(best) - t)) best = k;
-    return best;
   }
 
   // ------------------------------------------------------------------ tabs
@@ -126,8 +137,9 @@
       if (panel) panel.hidden = t !== name;
     }
     if (history.replaceState) history.replaceState(null, '', `#${name}`);
-    if (name === 'similaridade' && !state.simLoaded) loadSimilaridade('');
     if (name === 'painel') renderPainel();
+    if (name === 'board') tickAges();
+    syncTicker();
   }
   function bindTabs() {
     const list = $('.tabs');
@@ -147,11 +159,26 @@
       if (e.key === 'End') j = TABS.length - 1;
       showTab(TABS[j], { focus: true });
     });
-    document.addEventListener('click', (e) => {
-      const go = e.target.closest('[data-goto]');
-      if (go) { e.preventDefault(); showTab(go.dataset.goto, { focus: true }); }
-    });
     window.addEventListener('hashchange', () => showTab(location.hash.slice(1) || 'painel'));
+    document.addEventListener('visibilitychange', syncTicker);
+  }
+
+  // One 5 s ticker, alive only while the page is visible and the Painel or the Board is the
+  // current tab: the Painel re-reads /api/board (TMA moves as humans act); the Board only
+  // recomputes the "nesta coluna há" clocks locally from level_entered_at.
+  function syncTicker() {
+    const wanted = !document.hidden && (state.currentTab === 'painel' || state.currentTab === 'board');
+    if (!wanted && state.uiTimer) { clearInterval(state.uiTimer); state.uiTimer = null; }
+    if (wanted && !state.uiTimer) {
+      state.uiTimer = setInterval(async () => {
+        if (document.hidden) return;
+        if (state.currentTab === 'board') { tickAges(); return; }
+        if (state.currentTab === 'painel' && !state.busy) {
+          const ok = await refreshBoard();
+          if (!ok) { clearInterval(state.uiTimer); state.uiTimer = null; } // API down: stop polling (resumes on tab change or Atualizar)
+        }
+      }, TICK_MS);
+    }
   }
 
   // ------------------------------------------------------------------ loaders
@@ -163,21 +190,9 @@
       el.innerHTML = `<span class="dot${h.model_loaded ? '' : ' off'}"></span>` +
         (h.model_loaded ? `modelo carregado · <b>${fmtNum(h.n_train)}</b> treino · <b>${fmtNum(h.n_holdout)}</b> hold-out` : 'modelo não carregado (rode make train)') +
         ` · v${esc(h.version)} · LLM ${h.llm_enabled ? 'ligado' : 'desligado'}`;
-      $('#lead-holdout').textContent = h.n_holdout ? fmtNum(h.n_holdout) : '—';
     } catch (err) {
       el.innerHTML = `<span class="dot off"></span>API indisponível: ${esc(err.message)}`;
     }
-  }
-  async function loadMetrics() {
-    const [m, p, d] = await Promise.allSettled([api('/api/metrics'), api('/api/policy'), api('/api/ds1')]);
-    state.metrics = m.status === 'fulfilled' ? m.value : null;
-    state.policy = p.status === 'fulfilled' ? p.value : null;
-    if (Array.isArray(state.policy) && state.policy.length) { // derive AUTO from the API policy (fallback: static set above)
-      const fromApi = state.policy.filter(r => r.action === 'auto-roteio com rascunho').map(r => r.category);
-      if (fromApi.length) { AUTO.clear(); fromApi.forEach(c => AUTO.add(c)); }
-    }
-    state.ds1 = d.status === 'fulfilled' ? d.value : null;
-    if (m.status === 'rejected') toast('metrics.json indisponível: rode make train', 'err');
   }
   async function loadExamples() {
     try { state.examples = (await api('/api/examples')).examples || []; } catch (_) { state.examples = []; }
@@ -187,67 +202,47 @@
   }
 
   // ------------------------------------------------------------------ 1. painel
+  function tmaCard(level) {
+    const c = state.board && state.board.counters;
+    const tma = (c && c.tma && c.tma[level]) || {};
+    const open = (c && c.tma && c.tma.open && c.tma.open[level]) || 0;
+    const n = isNum(tma.n) ? tma.n : 0;
+    const openTxt = `${plural(open, 'card', 'cards')} ainda no nível`;
+    if (!n || !isNum(tma.avg_s)) {
+      return kpi(TMA_TITLE[level], '—', `ainda sem cards concluídos${open ? ` · ${openTxt}` : ''}`, 'board');
+    }
+    return kpi(TMA_TITLE[level], fmtDur(tma.avg_s), `${plural(n, 'estadia concluída', 'estadias concluídas')} · ${openTxt}`, 'board');
+  }
+
   function renderPainel() {
     const c = state.board && state.board.counters;
     const el = $('#kpis');
+    const holdout = state.total || (state.health && state.health.n_holdout) || 0;
+    const available = holdout ? `de ${fmtNum(holdout)} disponíveis no hold-out` : 'hold-out indisponível';
+    const bd = (c && c.by_decision) || {};
+    const tmas = LEVELS.map(tmaCard).join('');
     if (!c || !c.total) {
-      el.innerHTML = kpi('Tickets no replay', '0', 'Rode o replay na aba Board para medir os contadores.') +
-        kpi('N1-IA auto-roteado', '—', 'fração que a IA roteou sozinha e ninguém contestou') +
-        kpi('N2', '—', 'sugerir fila, triagem ou humano obrigatório') +
-        kpi('N3 por escalação humana', '—', 'só chega por clique do analista') +
-        kpi('Acerto da IA no replay', '—', 'classe prevista = classe verdadeira') +
-        kpi('Overrides "IA errou"', '0', 'marcados por humano');
-    } else {
-      const bd = c.by_decision || {};
       el.innerHTML =
-        kpi('Tickets no replay', fmtNum(c.total), `${state.position ? fmtNum(state.position) : '—'} de ${fmtNum(state.total)} do hold-out servidos`) +
-        kpi('N1-IA auto-roteado', fmtPct(ratio(c.n1, c.total)), `${fmtNum(c.n1)} no N1 agora · ${fmtNum(bd.auto_route)} decisões do gate`, 'real', true) +
-        kpi('N2', fmtPct(ratio(c.n2, c.total)), `sugerir ${fmtNum(bd.suggest)} · triagem ${fmtNum(bd.human_triage)} · obrigatório ${fmtNum(bd.human_required)}`) +
-        kpi('N3 por escalação humana', fmtPct(ratio(c.n3, c.total)), `${fmtNum(c.n3)} escalados por clique`) +
-        kpi('Acerto da IA no replay', fmtPct(ratio(c.ai_correct, c.ai_evaluated)), `${fmtNum(c.ai_correct)} de ${fmtNum(c.ai_evaluated)} · nos auto-roteados: ${fmtPct(ratio(c.auto_correct, c.auto_evaluated))}`) +
-        kpi('Overrides "IA errou"', fmtNum(c.ai_wrong), `${fmtNum(c.resolved)} resolvidos por humano`);
+        kpi('Tickets recebidos', '0', `${available} · rode o replay na aba Board`) +
+        kpi('Tratados pela IA (N1-IA)', '—', 'a IA resolveu a triagem; humano só confirma', 'real', true) +
+        kpi('Delegados ao humano (N2)', '—', 'a IA passou a decisão para uma pessoa') +
+        kpi('Escalados ao N3', '—', 'só por clique humano') +
+        kpi('Acerto da IA', '—', 'classe prevista = classe verdadeira') +
+        kpi('IA errou', '0', 'correções humanas') +
+        tmas;
+      return;
     }
-
-    const d = state.ds1;
-    $('#card-tma').innerHTML = d ? `
-      <p class="hint">Dataset 1 (${fmtNum(d.n_rows)} linhas) é gerado por script: não dá para medir onde o suporte perde tempo.</p>
-      ${fact('Janela de todos os timestamps', `${fmtNum(d.time_window_hours, 1)} h`)}
-      ${fact('"Resolvidos" antes da 1ª resposta', fmtPct(d.share_negative_resolution))}
-      ${fact('Descrições com placeholder', fmtPct(d.placeholder_share, 0))}
-      ${fact('Primeiras frases distintas', fmtNum(d.first_sentence_distinct))}
-      ${fact('Satisfação × canal/prioridade/tipo', `p ≥ ${fmtNum(Math.min(...(d.association_tests || []).filter((t) => t.variable !== 'frt_hour').map((t) => t.p_value)), 2)}`)}
-      <p class="tiny">${esc(d.verdict || '')}</p>
-      <p class="tiny">Dataset 2 não tem campo de resolução nem tempo. Fonte: artifacts/ds1_metrics.json.</p>`
-      : '<p class="hint">artifacts/ds1_metrics.json indisponível.</p>';
-
-    const m = state.metrics;
-    const nc = d && d.negative_control;
-    $('#card-controle').innerHTML = (m && nc) ? `
-      <p class="hint">O mesmo pipeline (TF-IDF + regressão logística, 5-fold) aplicado aos dois datasets.</p>
-      ${fact('Dataset 1: descrição → tipo', fmtPct(nc.accuracy), `chance ${fmtPct(nc.chance, 0)}, majoritária ${fmtPct(nc.majority_share)}`)}
-      ${fact('Dataset 2: texto → classe (hold-out)', fmtPct(m.accuracy), `5-fold ${fmtPct(m.cv5 && m.cv5.accuracy)}`)}
-      <p class="tiny">No Dataset 1 o texto não carrega sinal: as classes são sorteadas. No Dataset 2 o texto prevê a classe. É por isso que a triagem se prova no segundo e o primeiro vira controle negativo.</p>`
-      : '<p class="hint">Artefatos indisponíveis.</p>';
-
-    $('#card-modelo').innerHTML = m ? `
-      ${fact('Tickets (após desduplicação)', `${fmtNum(m.n_total - m.n_dedup_removed)}`, `${fmtNum(m.n_dedup_removed)} duplicados removidos`)}
-      ${fact('Treino / hold-out', `${fmtNum(m.n_train)} / ${fmtNum(m.n_holdout)}`, 'split 80/20 estratificado, seed 42')}
-      ${fact('Acurácia no hold-out', fmtPct(m.accuracy))}
-      ${fact('Macro-F1', fmtPct(m.macro_f1))}
-      ${fact('Erro de calibração (ECE)', fmtPct(m.ece))}
-      ${fact('Acerto do 1º vizinho (similaridade)', fmtPct(m.similarity && m.similarity.nn_accuracy))}
-      <p class="tiny">TF-IDF (1,2) + regressão logística; similaridade por cosseno. Fonte: artifacts/metrics.json.</p>`
-      : '<p class="hint">artifacts/metrics.json indisponível.</p>';
-
-    const r = thresholdRow(state.threshold);
-    $('#card-gate').innerHTML = r ? `
-      <p class="hint">Limiar <b>${fmtP(r.t)}</b>, medido no hold-out (${fmtNum(m.n_holdout)} tickets). <button type="button" class="linkbtn" data-goto="operacao">ajustar</button></p>
-      ${fact('Confiança ≥ limiar (cobertura bruta)', fmtPct(r.coverage), `${fmtNum(r.n_covered)} tickets`)}
-      ${fact('Acerto nos cobertos', fmtPct(r.acc_covered), `${fmtNum(r.n_errors_covered)} erros`)}
-      ${fact('Auto-roteável após política (cobertura útil)', fmtPct(r.useful_coverage), `${fmtNum(r.n_useful)} tickets`)}
-      ${fact('Acerto nos auto-roteáveis', fmtPct(r.useful_acc), `${fmtNum(r.n_errors_useful)} erros`)}
-      ${fact('Acerto no restante (vai ao humano)', fmtPct(r.acc_rest), `${fmtNum(r.n_rest)} tickets`)}`
-      : '<p class="hint">Curvas por limiar indisponíveis.</p>';
+    el.innerHTML =
+      kpi('Tickets recebidos', fmtNum(c.total), `entraram no board nesta sessão, ${available}`) +
+      kpi('Tratados pela IA (N1-IA)', fmtPct(ratio(c.n1, c.total)),
+        `${plural(c.n1, 'ticket', 'tickets')}: a IA resolveu a triagem; humano só confirma o rascunho. Não é escalação.`, 'real', true) +
+      kpi('Delegados ao humano (N2)', fmtPct(ratio(c.n2, c.total)),
+        `decisão da IA na chegada: ${plural(c.n2, 'ticket', 'tickets')} em que uma pessoa decide · sugestão de fila ${fmtNum(bd.suggest)} · triagem ${fmtNum(bd.human_triage)} · humano obrigatório ${fmtNum(bd.human_required)}`) +
+      kpi('Escalados ao N3', fmtPct(ratio(c.n3, c.total)), `${plural(c.n3, 'escalado', 'escalados')} por clique humano`) +
+      kpi('Acerto da IA', fmtPct(ratio(c.ai_correct, c.ai_evaluated)),
+        `${fmtNum(c.ai_correct)} de ${fmtNum(c.ai_evaluated)} com classe prevista = verdadeira · nos tratados pela IA: ${fmtPct(ratio(c.auto_correct, c.auto_evaluated))}`) +
+      kpi('IA errou', fmtNum(c.ai_wrong), `correções humanas · ${plural(c.resolved, 'resolvido', 'resolvidos')} por humano`) +
+      tmas;
   }
 
   // ------------------------------------------------------------------ 2. board
@@ -256,30 +251,34 @@
     const text = t.text || '';
     const long = text.length > 220;
     const flags = (t.risk_flags || []).map((f) => `<span class="chip chip-danger">${esc(RISK_LABEL[f] || f)}</span>`).join(' ');
-    const top3 = (t.top3 || []).map((x) => `${esc(x.category)} ${fmtP(x.p)}`).join(' · ');
+    const top3 = (t.top3 || []).map((x) => `${esc(labelPt(x.category))} ${fmtP(x.p)}`).join(' · ');
     const nb = (t.neighbors || []).map((n) =>
-      `<li><span class="sim">${fmtP(n.similarity)}</span> <span class="cls">${esc(n.category || '?')}</span> <span class="ex">${esc(n.excerpt || '(sem trecho)')}</span></li>`).join('');
+      `<li><span class="sim">${fmtP(n.similarity)}</span> <span class="cls">${esc(labelPt(n.category) || '?')}</span> <span class="ex">${esc(n.excerpt || '(sem trecho)')}</span></li>`).join('');
     const draft = t.draft
       ? `<details class="sub"><summary>Rascunho (macro; LLM desligado)</summary><pre class="draft">${esc(t.draft)}</pre><p class="tiny">Humano revisa, edita e envia. A IA não responde ao cliente.</p></details>`
       : `<p class="tiny">Sem rascunho: ${t.decision === 'auto_route' ? 'classe sem macro' : 'só auto-roteio recebe rascunho'}.</p>`;
+    const age = t.level_entered_at
+      ? `<span class="chip chip-age" data-entered="${esc(t.level_entered_at)}">nesta coluna há ${fmtDur(ageSeconds(t.level_entered_at))}</span>`
+      : '';
     return `<article class="ticket dec-${esc(t.decision)}" data-id="${esc(t.id)}" aria-label="Ticket ${esc(t.id)}">
       <header class="ticket-head">
         <span class="tid">${esc(t.id)}</span>
         <span class="badge badge-dec">${esc(DECISION_LABEL[t.decision] || t.decision)}</span>
         <span class="chip chip-status status-${esc(t.status)}">${esc(STATUS_LABEL[t.status] || t.status)}</span>
         ${t.ai_wrong ? '<span class="chip chip-danger">IA errou</span>' : ''}
+        ${age}
       </header>
       <p class="ticket-text${long ? ' clamp' : ''}">${esc(text)}</p>
       ${long ? '<button type="button" class="linkbtn" data-toggle="text">ver tudo</button>' : ''}
       <dl class="meta">
-        <div><dt>Classe prevista</dt><dd>${esc(t.category)} <b>p ${fmtP(t.confidence)}</b></dd></div>
-        <div><dt>Classe verdadeira</dt><dd>${esc(t.true_category)} <span class="${ok ? 'ok' : 'bad'}" title="${ok ? 'acertou' : 'errou'}">${ok ? '✓' : '✗'}</span></dd></div>
-        <div><dt>Fila · nível</dt><dd>${esc(t.queue)} · ${esc(t.level)}</dd></div>
+        <div><dt>Classe prevista</dt><dd>${esc(labelPt(t.category))} <b>p ${fmtP(t.confidence)}</b></dd></div>
+        <div><dt>Classe verdadeira</dt><dd>${esc(labelPt(t.true_category))} <span class="${ok ? 'ok' : 'bad'}" title="${ok ? 'acertou' : 'errou'}">${ok ? '✓' : '✗'}</span></dd></div>
+        <div><dt>Fila · nível</dt><dd>${esc(labelPt(t.queue))} · ${esc(t.level)}</dd></div>
         <div><dt>Responsável</dt><dd>${t.assigned_to ? esc(t.assigned_to) : '—'} ${badge('sim').replace('SIMULAÇÃO', 'SIMULADO')}</dd></div>
       </dl>
       ${top3 ? `<p class="top3">Top-3 classes: ${top3}</p>` : ''}
       ${flags ? `<p class="flags">Risco: ${flags}</p>` : ''}
-      <p class="reason"><b>Decisão:</b> ${esc(t.reason)}</p>
+      <p class="reason"><b>Decisão:</b> ${esc(ptText(t.reason))}</p>
       <details class="sub"><summary>Top-3 similares no treino ${badge('real')}</summary><ol class="nb">${nb || '<li>sem vizinhos</li>'}</ol></details>
       ${draft}
       <div class="actions">
@@ -291,10 +290,15 @@
     </article>`;
   }
 
+  // Refresh the "nesta coluna há mm:ss" chips in place (no fetch, no re-render).
+  function tickAges() {
+    for (const el of $$('#board [data-entered]')) el.textContent = `nesta coluna há ${fmtDur(ageSeconds(el.dataset.entered))}`;
+  }
+
   function renderBoard() {
     const snap = state.board;
     if (!snap) return;
-    for (const lvl of ['N1', 'N2', 'N3']) {
+    for (const lvl of LEVELS) {
       const items = snap[lvl] || [];
       const shown = items.slice(0, MAX_CARDS);
       $(`#count-${lvl}`).textContent = items.length > MAX_CARDS ? `${MAX_CARDS}+` : String(items.length);
@@ -313,8 +317,10 @@
       state.board = await api(`/api/board?limit=${MAX_CARDS + 1}`);
       renderBoard();
       if (state.currentTab === 'painel') renderPainel();
+      return true;
     } catch (err) {
       toast(`Board indisponível: ${err.message}`, 'err');
+      return false;
     }
   }
 
@@ -399,164 +405,49 @@
     });
   }
 
-  // ------------------------------------------------------------------ 3. ponto de operação
-  function chartSVG(rows, t) {
-    const W = 640, H = 260, pl = 44, pr = 16, pt = 14, pb = 34;
-    const x = (v) => pl + ((v - 0.5) / (0.99 - 0.5)) * (W - pl - pr);
-    const y = (v) => pt + (1 - v) * (H - pt - pb);
-    const path = (key) => rows.map((r, i) => `${i ? 'L' : 'M'}${x(r.t).toFixed(1)} ${y(r[key]).toFixed(1)}`).join(' ');
-    const grid = [0, 0.25, 0.5, 0.75, 1].map((v) =>
-      `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${pl - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${fmtPct(v, 0)}</text>`).join('');
-    const xt = [0.5, 0.6, 0.7, 0.8, 0.9, 0.99].map((v) =>
-      `<text x="${x(v).toFixed(1)}" y="${H - pb + 16}" text-anchor="middle">${fmtP(v)}</text>`).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cobertura e acerto em função do limiar; marcador no limiar atual ${fmtP(t)}">
-      ${grid}${xt}
-      <line class="axis" x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}"/>
-      <line class="axis" x1="${pl}" x2="${pl}" y1="${y(0)}" y2="${y(1)}"/>
-      <text x="${(W + pl - pr) / 2}" y="${H - 4}" text-anchor="middle">limiar de confiança</text>
-      <path class="l-cov" d="${path('coverage')}"/>
-      <path class="l-useful" d="${path('useful_coverage')}"/>
-      <path class="l-acc" d="${path('acc_covered')}"/>
-      <path class="l-useful-acc" d="${path('useful_acc')}"/>
-      <line class="marker" x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${y(0)}" y2="${y(1)}"/>
-    </svg>
-    <div class="chart-legend">
-      <span><i style="border-color:var(--gold)"></i>cobertura bruta (confiança ≥ limiar)</span>
-      <span><i style="border-color:var(--navy)"></i>cobertura útil (após política)</span>
-      <span><i style="border-color:var(--ok)"></i>acerto nos cobertos</span>
-      <span><i style="border-color:var(--ok);border-top-style:dashed"></i>acerto nos auto-roteáveis</span>
-      <span><i style="border-color:var(--danger);border-top-style:dashed"></i>limiar atual</span>
-    </div>`;
-  }
-
-  function calcInputs() {
-    const num = (id, fallback) => { const v = parseFloat($(id).value); return Number.isFinite(v) && v >= 0 ? v : fallback; };
-    return { V: num('#calc-tickets', 2500), mt: num('#calc-min', 3), h: num('#calc-hora', 41), me: num('#calc-erro', 10) };
-  }
-  function scenario(row, inp) {
-    const c = row.useful_coverage, e = 1 - row.useful_acc;
-    const auto = inp.V * c;
-    const gross = auto * inp.mt / 60;
-    const rework = auto * e * inp.me / 60;
-    const net = gross - rework;
-    return { t: row.t, c, e, auto, gross, rework, net, brl: net * inp.h };
-  }
-  function renderCalc() {
-    const out = $('#calc-out');
-    const row = thresholdRow(state.threshold);
-    if (!row) { out.innerHTML = '<p class="hint">Curvas por limiar indisponíveis.</p>'; return; }
-    const inp = calcInputs();
-    const s = scenario(row, inp);
-    const others = [0.80, 0.90, 0.95].map((t) => thresholdRow(t)).filter(Boolean).map((r) => scenario(r, inp));
-    out.innerHTML = `
-      <div class="kpis" style="margin-top:12px">
-        ${kpi('Auto-roteados por mês', fmtNum(s.auto), `${fmtNum(inp.V)} × cobertura útil ${fmtPct(s.c)}`, 'sim')}
-        ${kpi('Horas de triagem poupadas', fmtNum(s.gross, 1) + ' h', `${fmtNum(inp.mt, 1)} min por ticket`, 'sim')}
-        ${kpi('Horas de retrabalho por erro', fmtNum(s.rework, 1) + ' h', `taxa de erro ${fmtPct(s.e)} × ${fmtNum(inp.me)} min`, 'sim')}
-        ${kpi('Economia líquida por mês', fmtBRL(s.brl), `${fmtNum(s.net, 1)} h × ${fmtBRL(inp.h)}/h`, 'sim', true)}
-      </div>
-      <div class="table-wrap" style="margin-top:12px"><table>
-        <thead><tr><th>Cenário</th><th class="num">Limiar</th><th class="num">Cobertura útil</th><th class="num">Erro</th><th class="num">Auto/mês</th><th class="num">Horas líquidas</th><th class="num">R$/mês</th></tr></thead>
-        <tbody>${others.map((o, i) => `<tr${Math.abs(o.t - state.threshold) < 1e-6 ? ' style="font-weight:700"' : ''}><td>${['afrouxado', 'recomendado', 'conservador'][i]}</td><td class="num">${fmtP(o.t)}</td><td class="num">${fmtPct(o.c)}</td><td class="num">${fmtPct(o.e)}</td><td class="num">${fmtNum(o.auto)}</td><td class="num">${fmtNum(o.net, 1)}</td><td class="num">${fmtBRL(o.brl)}</td></tr>`).join('')}</tbody>
-      </table></div>
-      <p class="tiny">Fórmula: horas líquidas = V·c·m<sub>t</sub>/60 − V·c·e·m<sub>e</sub>/60, com c (cobertura útil) e e (1 − acerto nos auto-roteáveis) medidos no hold-out para cada limiar. O custo de API é zero: classificação e similaridade rodam localmente. Não inclui o ganho de N2 sobre tickets só sugeridos.</p>`;
-  }
-
-  function renderOperacao() {
-    const row = thresholdRow(state.threshold);
-    const el = $('#op-kpis');
-    if (!row) {
-      el.innerHTML = '<p class="hint">artifacts/metrics.json indisponível: rode make train.</p>';
-      $('#op-chart').innerHTML = '';
-      renderCalc();
-      return;
-    }
-    const inp = calcInputs();
-    el.innerHTML =
-      kpi('Cobertura bruta', fmtPct(row.coverage), `${fmtNum(row.n_covered)} tickets com confiança ≥ ${fmtP(row.t)}`) +
-      kpi('Cobertura útil', fmtPct(row.useful_coverage), `${fmtNum(row.n_useful)} auto-roteáveis (classes Access/Storage/Hardware, sem risco)`, 'real', true) +
-      kpi('Acerto nos cobertos', fmtPct(row.acc_covered), `${fmtNum(row.n_errors_covered)} erros em ${fmtNum(row.n_covered)}`) +
-      kpi('Acerto nos auto-roteáveis', fmtPct(row.useful_acc), `${fmtNum(row.n_errors_useful)} erros em ${fmtNum(row.n_useful)}`) +
-      kpi('Acerto no restante', fmtPct(row.acc_rest), `${fmtNum(row.n_rest)} tickets vão ao humano`) +
-      kpi('Tickets/mês auto-roteados', fmtNum(inp.V * row.useful_coverage), `${fmtNum(inp.V)} tickets/mês × cobertura útil`, 'sim');
-    $('#op-chart').innerHTML = chartSVG(state.metrics.thresholds, row.t);
-    renderCalc();
-  }
-
+  // ------------------------------------------------------------------ threshold (gate)
+  // The threshold is the minimum confidence for the AI to act alone; it is sent with every
+  // /api/replay/next and /api/triage call. Choices are the three values the hold-out curves
+  // were measured at; the default stays 0,90.
   function setThreshold(v) {
-    const t = Math.min(0.99, Math.max(0.5, Math.round(v * 100) / 100));
+    const t = THRESHOLD_OPTIONS.includes(v) ? v : DEFAULT_THRESHOLD;
     state.threshold = t;
-    $('#threshold').value = t.toFixed(2);
-    $('#threshold-out').value = fmtP(t);
+    $('#threshold-select').value = t.toFixed(2);
     for (const el of $$('.threshold-readout')) el.textContent = fmtP(t);
-    renderOperacao();
-    renderPolitica();
-    if (state.currentTab === 'painel') renderPainel();
   }
-  function bindOperacao() {
-    $('#threshold').addEventListener('input', (e) => setThreshold(parseFloat(e.target.value)));
-    for (const id of ['#calc-tickets', '#calc-min', '#calc-hora', '#calc-erro']) {
-      $(id).addEventListener('input', () => renderOperacao());
-    }
+  function bindThreshold() {
+    $('#threshold-select').addEventListener('change', (e) => {
+      setThreshold(parseFloat(e.target.value));
+      toast(`Limiar de confiança ${fmtP(state.threshold)}: vale para os próximos lotes e para a triagem de novo ticket.`);
+    });
   }
 
-  // ------------------------------------------------------------------ 4. política por classe
-  function renderPolitica() {
-    const el = $('#policy-table');
-    const note = $('#policy-note');
-    if (!state.policy) { el.innerHTML = '<p class="hint" style="padding:12px">artifacts/policy.json indisponível.</p>'; return; }
-    const m = state.metrics;
-    const key = perClassKey(state.threshold);
-    const at = (m && m.per_class_at && m.per_class_at[key]) || {};
-    const pc = (m && m.per_class) || {};
-    const counts = (m && m.class_counts) || {};
-    const rows = state.policy.map((p) => {
-      const a = at[p.category] || {};
-      const c = pc[p.category] || {};
-      const cls = AUTO.has(p.category) ? 'act-auto' : (p.category === 'Miscellaneous' ? 'act-human' : 'act-suggest');
-      return `<tr class="${cls}">
-        <td><b>${esc(p.category)}</b></td>
-        <td class="num">${fmtNum(counts[p.category])}</td>
-        <td class="num">${fmtPct(c.precision)}</td>
-        <td class="num">${fmtPct(c.recall)}</td>
-        <td class="num">${fmtPct(a.coverage)}</td>
-        <td class="num">${fmtPct(a.acc)}${isNum(a.n_errors) ? ` <span class="tiny">(${fmtNum(a.n_errors)} erros)</span>` : ''}</td>
-        <td>${esc(p.action)}</td>
-        <td>${esc(p.reason)}</td>
-      </tr>`;
-    }).join('');
-    el.innerHTML = `<table>
-      <thead><tr><th>Classe</th><th class="num">Volume</th><th class="num">Precisão</th><th class="num">Recall</th><th class="num">Cobertura @ ${fmtP(Number(key))}</th><th class="num">Acerto @ ${fmtP(Number(key))}</th><th>Ação</th><th>Motivo</th></tr></thead>
-      <tbody>${rows}</tbody></table>`;
-    note.innerHTML = `Volume, precisão e recall do hold-out (metrics.per_class). Cobertura e acerto por classe estão gravados para 0,80 / 0,90 / 0,95; a tabela mostra <b>${fmtP(Number(key))}</b>, o mais próximo do limiar atual (${fmtP(state.threshold)}). Cobertura = fração dos tickets previstos na classe com confiança ≥ limiar; acerto = precisão dentro dessa fração.`;
-  }
-
-  // ------------------------------------------------------------------ 5. novo ticket
+  // ------------------------------------------------------------------ 3. novo ticket
   function renderNovoExamples() {
     const el = $('#novo-examples');
     if (!state.examples.length) { el.innerHTML = '<p class="hint">Exemplos indisponíveis (hold-out ausente).</p>'; return; }
     el.innerHTML = state.examples.map((e, i) =>
-      `<button type="button" class="example" data-example="${i}"><span class="cls">exemplo real ${i + 1} · classe verdadeira: ${esc(e.true_category)}</span><span class="ex">${esc(truncate(e.text, 110))}</span></button>`).join('');
+      `<button type="button" class="example" data-example="${i}"><span class="cls">exemplo real ${i + 1} · classe verdadeira: ${esc(labelPt(e.true_category))}</span><span class="ex">${esc(truncate(e.text, 110))}</span></button>`).join('');
   }
 
   function renderTriage(r, text) {
     const flags = (r.risk_flags || []).map((f) => `<span class="chip chip-danger">${esc(RISK_LABEL[f] || f)}</span>`).join(' ');
-    const bars = (r.top3 || []).map((x) => `<div class="bar"><span>${esc(x.category)}</span><div class="track"><div class="fill" style="width:${Math.max(1, x.p * 100).toFixed(1)}%"></div></div><span class="n">${fmtP(x.p)}</span></div>`).join('');
+    const bars = (r.top3 || []).map((x) => `<div class="bar"><span>${esc(labelPt(x.category))}</span><div class="track"><div class="fill" style="width:${Math.max(1, x.p * 100).toFixed(1)}%"></div></div><span class="n">${fmtP(x.p)}</span></div>`).join('');
     const nb = (r.neighbors || []).length
-      ? `<ol class="nb">${r.neighbors.map((n) => `<li><span class="sim">${fmtP(n.similarity)}</span> <span class="cls">${esc(n.category)}</span> <span class="ex">${esc(n.excerpt)}</span></li>`).join('')}</ol>`
+      ? `<ol class="nb">${r.neighbors.map((n) => `<li><span class="sim">${fmtP(n.similarity)}</span> <span class="cls">${esc(labelPt(n.category))}</span> <span class="ex">${esc(n.excerpt)}</span></li>`).join('')}</ol>`
       : '<p class="hint">Sem vizinhos: o texto não tem termos conhecidos pelo vocabulário do modelo.</p>';
     const draft = r.draft
       ? `<pre class="draft">${esc(r.draft)}</pre><p class="tiny">Macro por classe (LLM desligado). Humano revisa, edita e envia.</p>`
       : `<p class="hint">Sem rascunho: ${r.decision === 'human_required' ? 'sinal de risco exige humano' : r.decision === 'suggest' ? 'classe sensível: N2 confirma a fila antes' : 'só auto-roteio recebe rascunho'}.</p>`;
     $('#novo-result').innerHTML = `
       <div class="result-dec dec-${esc(r.decision)}">
-        <div class="sim-head"><span class="big"><span class="badge badge-dec">${esc(DECISION_LABEL[r.decision] || r.decision)}</span> nível ${esc(r.level)} · fila <b>${esc(r.queue)}</b></span>${badge('real')}</div>
+        <div class="result-head"><span class="big"><span class="badge badge-dec">${esc(DECISION_LABEL[r.decision] || r.decision)}</span> nível ${esc(r.level)} · fila <b>${esc(labelPt(r.queue))}</b></span>${badge('real')}</div>
         <p style="margin:6px 0 0">${esc(DECISION_LONG[r.decision] || '')}</p>
-        <p class="reason" style="margin-top:6px"><b>Motivo:</b> ${esc(r.reason)}</p>
+        <p class="reason" style="margin-top:6px"><b>Motivo:</b> ${esc(ptText(r.reason))}</p>
         ${flags ? `<p class="flags">Sinais de risco: ${flags}</p>` : ''}
       </div>
       <div class="cards-2" style="margin-top:12px">
-        <article class="card"><header class="card-head"><h3>Classe prevista: ${esc(r.category)} · p ${fmtP(r.confidence)}</h3>${badge('real')}</header><div class="bars">${bars}</div><p class="tiny">Limiar aplicado: ${fmtP(state.threshold)}. Texto triado (${text.length} caracteres) normalizado no servidor.</p></article>
+        <article class="card"><header class="card-head"><h3>Classe prevista: ${esc(labelPt(r.category))} · p ${fmtP(r.confidence)}</h3>${badge('real')}</header><div class="bars">${bars}</div><p class="tiny">Limiar aplicado: ${fmtP(state.threshold)}. Texto triado (${text.length} caracteres) normalizado no servidor.</p></article>
         <article class="card"><header class="card-head"><h3>Top-3 tickets históricos parecidos</h3>${badge('real')}</header>${nb}</article>
         <article class="card" style="grid-column:1/-1"><header class="card-head"><h3>Rascunho para o analista</h3>${r.draft ? badge('real') : ''}</header>${draft}</article>
       </div>`;
@@ -587,9 +478,10 @@
     });
   }
 
-  // ------------------------------------------------------------------ 6. fechamento padronizado
-  function fillSelect(sel, values, placeholder) {
-    sel.innerHTML = `<option value="">${esc(placeholder)}</option>` + values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  // ------------------------------------------------------------------ 4. fechamento padronizado
+  // Option values are what the API expects (class keys in English); labelOf renders the text.
+  function fillSelect(sel, values, placeholder, labelOf = (v) => v) {
+    sel.innerHTML = `<option value="">${esc(placeholder)}</option>` + values.map((v) => `<option value="${esc(v)}">${esc(labelOf(v))}</option>`).join('');
   }
   function buildClosureForm() {
     const o = state.options;
@@ -597,7 +489,7 @@
       $('#fechamento-result').innerHTML = '<div class="notice warn">Listas do formulário indisponíveis (/api/closure/options). A validação continua na API.</div>';
       return;
     }
-    fillSelect($('#fc-category'), o.categories || [], '— escolha —');
+    fillSelect($('#fc-category'), o.categories || [], '— escolha —', labelPt);
     fillSelect($('#fc-root'), o.root_causes || [], '— escolha —');
     fillSelect($('#fc-level'), o.levels || [], '— escolha —');
     updateSubcategories();
@@ -652,7 +544,7 @@
   }
   function renderKbEntry(k) {
     const rows = [
-      ['ID na base', k.id], ['Ticket', k.ticket_id || '—'], ['Categoria', `${k.category} › ${k.subcategory}`],
+      ['ID na base', k.id], ['Ticket', k.ticket_id || '—'], ['Categoria', `${labelPt(k.category)} › ${k.subcategory}`],
       ['Causa raiz', k.root_cause], ['Ação de resolução', k.resolution_steps], ['Nível', k.resolved_by_level],
       ['Tempo gasto', `${fmtNum(k.time_spent_min)} min`], ['Resposta ao cliente', k.customer_reply || '—'],
       ['Reutilizável', k.reusable ? 'sim' : 'não'], ['Reaberto', k.reopened ? 'sim' : 'não'],
@@ -713,88 +605,20 @@
     $('#btn-fc-exemplo').addEventListener('click', fillClosureExample);
   }
 
-  // ------------------------------------------------------------------ 7. similaridade após padronização
-  const APPLY_TIP = 'requer similaridade ≥ 0,90, classe auto-roteável e base padronizada';
-  function simCard(s, i) {
-    const c = s.closure;
-    const conds = [
-      { ok: isNum(s.similarity) && s.similarity >= 0.90, label: `similaridade ≥ 0,90 (medida: ${fmtP(s.similarity)})` },
-      { ok: AUTO.has(s.category), label: `classe auto-roteável (${s.category || '?'})` },
-      { ok: !!(c && c.reusable), label: 'fechamento marcado como reutilizável' },
-      { ok: false, label: 'base padronizada existente (ainda não: fechamento ilustrativo)' },
-    ];
-    const closure = c ? `
-      <div class="sim-block">
-        <h4>Fechamento padronizado ${badge('ilus')}</h4>
-        <dl class="dl">
-          <dt>Categoria</dt><dd>${esc(c.category)} › ${esc(c.subcategory)}</dd>
-          <dt>Causa raiz</dt><dd>${esc(c.root_cause)}</dd>
-          <dt>Ação</dt><dd><pre>${esc(c.resolution_steps)}</pre></dd>
-          <dt>Nível · tempo</dt><dd>${esc(c.resolved_by_level)} · ${fmtNum(c.time_spent_min)} min</dd>
-          <dt>Resposta reutilizável</dt><dd>${c.customer_reply ? esc(c.customer_reply) : '—'} ${c.reusable ? '<span class="ok">sim</span>' : '<span class="bad">não</span>'}</dd>
-          <dt>Artigo</dt><dd>${esc(c.kb_article || '—')}</dd>
-        </dl>
-      </div>` : '<div class="sim-block"><p class="hint">Sem fechamento ilustrativo para esta classe.</p></div>';
-    return `<article class="card sim-card">
-      <div class="sim-head"><span class="sim-value">${fmtP(s.similarity)}</span>${badge('real')}</div>
-      <p class="tiny">similaridade por cosseno · ticket de treino ${fmtNum(s.id)} · classe <b>${esc(s.category || '?')}</b></p>
-      <p class="ticket-text">${esc(s.excerpt || '(sem trecho)')}</p>
-      ${closure}
-      <div class="sim-block">
-        <span class="tip" data-tip="${esc(APPLY_TIP)}" tabindex="0"><button type="button" class="btn btn-primary" disabled aria-describedby="sim-why-${i}">Aplicar tratativa sugerida</button></span>
-        <p class="tiny" id="sim-why-${i}">Desabilitado: ${esc(APPLY_TIP)}.</p>
-        <ul class="conds">${conds.map((x) => `<li class="${x.ok ? 'pass' : ''}">${esc(x.label)}</li>`).join('')}</ul>
-      </div>
-    </article>`;
-  }
-  function renderSimilaridade(data) {
-    const t = data.ticket;
-    $('#sim-note').innerHTML = `${badge('ilus')} ${esc(data.note || '')}`;
-    $('#sim-result').innerHTML = `
-      <article class="card">
-        <header class="card-head"><h3>Ticket de entrada · ${esc(t.id)}</h3>${badge('real')}</header>
-        <p class="ticket-text">${esc(t.text)}</p>
-        <p class="tiny">Classe prevista pelo modelo: <b>${esc(t.category)}</b>. Os 3 similares abaixo vêm do conjunto de treino; a similaridade é real, o fechamento é ilustrativo.</p>
-      </article>
-      <div class="sim-grid" style="margin-top:12px">${(data.similar || []).map(simCard).join('')}</div>
-      <p class="hint">Regra da proposta: "Aplicar tratativa sugerida" só habilita com similaridade ≥ 0,90 <b>e</b> classe auto-roteável <b>e</b> fechamento reutilizável, sobre uma base padronizada. Mesmo então, o humano aplica e fecha; a IA prepara.</p>`;
-  }
-  async function loadSimilaridade(ticketId) {
-    const el = $('#sim-result');
-    el.innerHTML = '<p class="hint">carregando…</p>';
-    try {
-      const data = await api(`/api/kb/example${ticketId ? `?ticket_id=${encodeURIComponent(ticketId)}` : ''}`);
-      state.simLoaded = true;
-      renderSimilaridade(data);
-    } catch (err) {
-      el.innerHTML = `<div class="notice err">Não foi possível carregar: ${esc(err.message)}</div>`;
-    }
-  }
-  function bindSimilaridade() {
-    const sel = $('#sim-select');
-    sel.innerHTML = state.examples.length
-      ? state.examples.map((e, i) => `<option value="${esc(e.id)}">exemplo ${i + 1} · ${esc(e.id)} · ${esc(e.true_category)}</option>`).join('')
-      : '<option value="">primeiro exemplo</option>';
-    sel.addEventListener('change', () => { $('#sim-id').value = ''; loadSimilaridade(sel.value); });
-    $('#btn-sim-load').addEventListener('click', () => loadSimilaridade($('#sim-id').value.trim() || sel.value));
-    $('#sim-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadSimilaridade($('#sim-id').value.trim() || sel.value); } });
-  }
-
   // ------------------------------------------------------------------ init
   async function init() {
     bindTabs();
     bindBoard();
-    bindOperacao();
+    bindThreshold();
     bindNovo();
     bindFechamento();
     $('#btn-refresh-painel').addEventListener('click', async () => { await refreshBoard(); renderPainel(); });
 
-    await Promise.allSettled([loadHealth(), loadMetrics(), loadExamples(), loadOptions()]);
+    await Promise.allSettled([loadHealth(), loadExamples(), loadOptions()]);
     state.total = (state.health && state.health.n_holdout) || 0;
     setThreshold(DEFAULT_THRESHOLD);
     renderNovoExamples();
     buildClosureForm();
-    bindSimilaridade();
     await refreshBoard();
     showTab(location.hash.slice(1) || 'painel');
     renderPainel();

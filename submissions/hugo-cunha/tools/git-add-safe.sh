@@ -8,6 +8,7 @@ git add -f -- submissions/hugo-cunha \
   ':(exclude)submissions/hugo-cunha/solution/prototipo/.venv' \
   ':(exclude)submissions/hugo-cunha/solution/prototipo/models' \
   ':(exclude,glob)submissions/hugo-cunha/solution/prototipo/data/*.csv' \
+  ':(exclude,glob)submissions/hugo-cunha/solution/prototipo/data/*.partial.jsonl' \
   ':(exclude,glob)submissions/hugo-cunha/**/__pycache__/**' \
   ':(exclude,glob)submissions/hugo-cunha/**/*.pyc' \
   ':(exclude,glob)submissions/hugo-cunha/**/*.db' \

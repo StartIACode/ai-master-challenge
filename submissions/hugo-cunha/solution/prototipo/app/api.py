@@ -14,6 +14,8 @@ Contract (docs/2026-09-16-plano-implementacao.md, Task 7); the UI is built again
     POST /api/replay/next   {n?=10, threshold?}  -> {tickets:[Ticket], position, total}
     POST /api/tickets/{id}/action  {action}      -> Ticket   (404 unknown id, 400 invalid action)
     GET  /api/board                              -> {N1, N2, N3, resolved, counters}
+                                                    counters.tma = {N1|N2|N3: {avg_s, n}, open: {N1, N2, N3}}
+                                                    (mean seconds of completed stays per level; app/board.py)
     POST /api/reset                              -> {ok:true}   (board + replay cursor)
     GET  /api/metrics | /api/ds1 | /api/policy   -> artifact JSON
     GET  /api/examples                           -> {examples:[{id, text, true_category}]}
@@ -22,6 +24,10 @@ Contract (docs/2026-09-16-plano-implementacao.md, Task 7); the UI is built again
     GET  /api/closure/options                    -> lists for the closure form (extra, not in the plan)
     GET  /                                       -> web/index.html;  /static/* -> web/
     GET  /favicon.ico                            -> 204 (the page uses an inline data-URI icon)
+
+Ticket = the triage keys plus ``id, text, true_category, assigned_to, status, created_at,
+resolved_at, ai_wrong`` and the per-level clocks ``level_entered_at, t_n1, t_n2, t_n3,
+finished_at`` (seconds spent at each level; see ``app/board.py``).
 
 Invariants the API upholds: the AI never answers the customer nor closes a ticket.
 ``resolve`` is a human action on the board; ``/api/triage`` only classifies, routes
@@ -116,7 +122,7 @@ def _pick_examples(replay: HoldoutReplay) -> list[dict]:
     picks: list[dict] = []
     wanted = [
         lambda r: r["pred_category"] in AUTO and r["confidence"] >= 0.95 and r["pred_category"] == r["true_category"]
-        and r["nn_sims"] and r["nn_sims"][0] >= 0.5 and len(r["text"].split()) >= 12,
+        and not risk_flags(r["text"]) and r["nn_sims"] and r["nn_sims"][0] >= 0.5 and len(r["text"].split()) >= 12,
         lambda r: r["pred_category"] in SUGGEST and r["confidence"] >= 0.90 and len(r["text"].split()) >= 12,
         lambda r: r["confidence"] < 0.80 and len(r["text"].split()) >= 12,
     ]
@@ -210,7 +216,7 @@ def _gate(category: str, confidence: float, text: str, threshold: float | None) 
 
 
 def _ticket_from_row(row: dict, model: TriageModel | None, threshold: float | None) -> dict:
-    """Replay row -> ticket dict (before the board fills assigned_to/status/created_at)."""
+    """Replay row -> ticket dict (before the board fills assigned_to/status/created_at and the level clocks)."""
     return {
         "id": _ticket_id(row["id"]),
         "text": row["text"],
