@@ -21,6 +21,7 @@ Contract (docs/2026-09-16-plano-implementacao.md, Task 7); the UI is built again
     GET  /api/kb/example?ticket_id=              -> {ticket, similar:[...closure], illustrative, note}
     GET  /api/closure/options                    -> lists for the closure form (extra, not in the plan)
     GET  /                                       -> web/index.html;  /static/* -> web/
+    GET  /favicon.ico                            -> 204 (the page uses an inline data-URI icon)
 
 Invariants the API upholds: the AI never answers the customer nor closes a ticket.
 ``resolve`` is a human action on the board; ``/api/triage`` only classifies, routes
@@ -37,7 +38,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -343,6 +344,13 @@ def kb_example(request: Request, ticket_id: str = Query("", description="hold-ou
         "illustrative": True,
         "note": ILLUSTRATIVE_NOTE,
     }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    # Browsers request /favicon.ico regardless of the <link rel="icon"> data-URI; answer 204
+    # instead of 404 so the console and the uvicorn log stay clean.
+    return Response(status_code=204)
 
 
 @app.get("/", include_in_schema=False)

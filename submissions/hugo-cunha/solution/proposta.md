@@ -38,7 +38,7 @@ Cobertura e acerto a 0,90 dentro de cada classe prevista (`per_class_at["0.90"]`
 | Classe (volume) | Cobertura a 0,90 | Acerto | Ação | Motivo |
 |---|---:|---:|---|---|
 | Access (7.102) | 65,2% | 98,7% | auto-roteio com rascunho | pedido repetitivo e de alta precisão; rotear não concede acesso |
-| Storage (2.773) | 64,2% | 99,4% | auto-roteio com rascunho | melhor precisão entre as classes; aumento de cota é decisão do N2 |
+| Storage (2.773) | 64,2% | 99,4% | auto-roteio com rascunho | melhor precisão entre as classes auto-roteáveis; aumento de cota é decisão do N2 |
 | Hardware (13.574) | 45,3% | 97,5% | auto-roteio com rascunho | troubleshooting padronizável; classe que absorve confusões, primeira a ter kill switch |
 | Purchase (2.308) | 85,5% | 99,5% | sugerir fila | envolve dinheiro e aprovação: N2 confirma a fila |
 | HR Support (10.800) | 54,5% | 98,6% | sugerir fila | envolve pessoas: nunca rascunho automático |

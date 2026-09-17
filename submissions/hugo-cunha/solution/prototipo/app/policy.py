@@ -66,7 +66,7 @@ _COMPILED: dict[str, re.Pattern[str]] = {k: re.compile(v, re.IGNORECASE) for k, 
 
 REASONS: dict[str, str] = {
     "Access": "pedido repetitivo e de alta precisão; rotear não concede acesso",
-    "Storage": "melhor precisão entre as classes; aumento de cota é decisão do N2",
+    "Storage": "melhor precisão entre as classes auto-roteáveis; aumento de cota é decisão do N2",
     "Hardware": "troubleshooting padronizável; classe que absorve confusões, primeira a ter kill switch",
     "Purchase": "envolve dinheiro e aprovação: N2 confirma a fila",
     "HR Support": "envolve pessoas: nunca rascunho automático",

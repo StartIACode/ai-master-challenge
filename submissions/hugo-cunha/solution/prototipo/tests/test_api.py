@@ -196,3 +196,8 @@ def test_root_and_static(client):
     r = client.get("/")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert client.get("/static/does-not-exist.js").status_code == 404
+
+
+def test_favicon_is_silent(client):
+    r = client.get("/favicon.ico")
+    assert r.status_code == 204 and r.content == b""

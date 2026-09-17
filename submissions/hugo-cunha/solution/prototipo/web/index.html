@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triagem N1-IA / N2 / N3</title>
+<meta name="description" content="Protótipo de triagem de tickets com classificador local e gate de confiança: a IA classifica, prioriza e roteia; humano responde e fecha.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23001F35'/%3E%3Ctext x='16' y='21' font-size='13' text-anchor='middle' fill='%23B9915B' font-family='serif' font-style='italic'%3EN1%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Libre+Baskerville:ital@1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Pular para o conteúdo</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <h1>Triagem N1-IA / N2 / N3</h1>
+      <p class="sub">Protótipo · Challenge 002 · dados reais do hold-out</p>
+    </div>
+    <div class="status" id="health" aria-live="polite">carregando…</div>
+  </div>
+  <div class="wrap">
+    <nav class="tabs" role="tablist" aria-label="Seções do protótipo">
+      <button type="button" role="tab" id="tabbtn-painel" data-tab="painel" aria-controls="tab-painel" aria-selected="true" tabindex="0">Painel</button>
+      <button type="button" role="tab" id="tabbtn-board" data-tab="board" aria-controls="tab-board" aria-selected="false" tabindex="-1">Board</button>
+      <button type="button" role="tab" id="tabbtn-operacao" data-tab="operacao" aria-controls="tab-operacao" aria-selected="false" tabindex="-1">Ponto de operação</button>
+      <button type="button" role="tab" id="tabbtn-politica" data-tab="politica" aria-controls="tab-politica" aria-selected="false" tabindex="-1">Política por classe</button>
+      <button type="button" role="tab" id="tabbtn-novo" data-tab="novo" aria-controls="tab-novo" aria-selected="false" tabindex="-1">Novo ticket</button>
+      <button type="button" role="tab" id="tabbtn-fechamento" data-tab="fechamento" aria-controls="tab-fechamento" aria-selected="false" tabindex="-1">Fechamento padronizado</button>
+      <button type="button" role="tab" id="tabbtn-similaridade" data-tab="similaridade" aria-controls="tab-similaridade" aria-selected="false" tabindex="-1">Similaridade após padronização</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+
+  <!-- 1. Painel -->
+  <section id="tab-painel" class="panel" role="tabpanel" aria-labelledby="tabbtn-painel">
+    <div class="section-head">
+      <div>
+        <h2>Painel</h2>
+        <p class="lead">Contadores medidos no replay de tickets reais do hold-out (Dataset 2, <span id="lead-holdout">—</span> tickets). A IA classifica, prioriza e roteia; humano responde e fecha.</p>
+      </div>
+      <button type="button" class="btn btn-ghost" id="btn-refresh-painel">Atualizar</button>
+    </div>
+    <div class="kpis" id="kpis" aria-live="polite"></div>
+    <div class="cards-2">
+      <article class="card">
+        <header class="card-head"><h3>TMA real: não mensurável nos datasets</h3><span class="badge badge-real">REAL</span></header>
+        <div id="card-tma"></div>
+      </article>
+      <article class="card">
+        <header class="card-head"><h3>Controle negativo</h3><span class="badge badge-real">REAL</span></header>
+        <div id="card-controle"></div>
+      </article>
+      <article class="card">
+        <header class="card-head"><h3>Modelo (Dataset 2)</h3><span class="badge badge-real">REAL</span></header>
+        <div id="card-modelo"></div>
+      </article>
+      <article class="card">
+        <header class="card-head"><h3>Gate no limiar atual</h3><span class="badge badge-real">REAL</span></header>
+        <div id="card-gate"></div>
+      </article>
+    </div>
+    <p class="legend">
+      <span class="badge badge-real">REAL</span> medido nos dados ·
+      <span class="badge badge-sim">SIMULAÇÃO</span> premissa nomeada e editável ·
+      <span class="badge badge-ilustrativo">EXEMPLO ILUSTRATIVO</span> como ficaria após a padronização
+    </p>
+  </section>
+
+  <!-- 2. Board -->
+  <section id="tab-board" class="panel" role="tabpanel" aria-labelledby="tabbtn-board" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Board N1-IA / N2 / N3</h2>
+        <p class="lead">Replay em lotes de 10 tickets reais do hold-out. Texto, classes e similares são reais; a chegada e os nomes dos responsáveis são simulados.</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button type="button" class="btn btn-primary" id="btn-next">Próximo lote (10)</button>
+      <button type="button" class="btn" id="btn-auto" aria-pressed="false">Auto a cada 3 s: desligado</button>
+      <button type="button" class="btn btn-ghost" id="btn-reset">Reiniciar</button>
+      <span class="chip">limiar <strong class="threshold-readout">0,90</strong> <button type="button" class="linkbtn" data-goto="operacao">ajustar</button></span>
+      <span class="chip" id="replay-pos">0 de —</span>
+      <span class="chip" id="resolved-chip">resolvidos por humano: 0</span>
+    </div>
+    <div class="board" id="board">
+      <div class="col" data-level="N1">
+        <h3>N1-IA <span class="count" id="count-N1">0</span></h3>
+        <p class="col-hint">auto-roteado com rascunho pronto (classes Access, Storage, Hardware)</p>
+        <div class="cards" id="col-N1"></div>
+      </div>
+      <div class="col" data-level="N2">
+        <h3>N2 <span class="count" id="count-N2">0</span></h3>
+        <p class="col-hint">analista: confirma fila sugerida, triagem manual ou humano obrigatório</p>
+        <div class="cards" id="col-N2"></div>
+      </div>
+      <div class="col" data-level="N3">
+        <h3>N3 <span class="count" id="count-N3">0</span></h3>
+        <p class="col-hint">especialista: só chega por escalação humana</p>
+        <div class="cards" id="col-N3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Ponto de operação -->
+  <section id="tab-operacao" class="panel" role="tabpanel" aria-labelledby="tabbtn-operacao" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Ponto de operação</h2>
+        <p class="lead">O classificador devolve, para cada ticket, uma probabilidade de 0 a 1 de que a classe prevista esteja certa. O limiar é o mínimo de confiança para a IA agir sozinha: subir o limiar = menos tickets automáticos e menos erros.</p>
+      </div>
+    </div>
+    <div class="card slider-card">
+      <label for="threshold" class="slider-label">Limiar de confiança <output id="threshold-out" for="threshold">0,90</output></label>
+      <input type="range" id="threshold" min="0.50" max="0.99" step="0.01" value="0.90" aria-describedby="threshold-help">
+      <div class="ticks" aria-hidden="true"><span>0,50</span><span>0,80</span><span>0,90</span><span>0,99</span></div>
+      <p class="hint" id="threshold-help">Vale para os próximos lotes do replay e para a triagem de novo ticket. Os números abaixo vêm de <code>metrics.thresholds</code>, medidos no hold-out.</p>
+    </div>
+    <div class="kpis" id="op-kpis" aria-live="polite"></div>
+    <div class="card">
+      <header class="card-head"><h3>Cobertura × acerto por limiar</h3><span class="badge badge-real">REAL</span></header>
+      <div id="op-chart" class="chart"></div>
+    </div>
+    <div class="card calc">
+      <header class="card-head"><h3>Calculadora de horas e R$</h3><span class="badge badge-sim">SIMULAÇÃO</span></header>
+      <p class="hint">Cobertura útil e taxa de erro vêm do hold-out (reais). Volume, minutos e custo-hora são premissas: edite à vontade.</p>
+      <div class="grid-fields">
+        <label>Tickets por mês <input type="number" id="calc-tickets" value="2500" min="0" step="100"></label>
+        <label>Minutos de triagem humana por ticket <input type="number" id="calc-min" value="3" min="0" step="0.5"></label>
+        <label>Custo-hora do analista N2 (R$) <input type="number" id="calc-hora" value="41" min="0" step="1"></label>
+        <label>Minutos de retrabalho por erro da IA <input type="number" id="calc-erro" value="10" min="0" step="1"></label>
+      </div>
+      <div id="calc-out" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- 4. Política por classe -->
+  <section id="tab-politica" class="panel" role="tabpanel" aria-labelledby="tabbtn-politica" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Política por classe</h2>
+        <p class="lead">O gate decide nesta ordem: sinal de risco → humano obrigatório; confiança ≥ limiar e classe auto-roteável → N1-IA com rascunho; confiança ≥ limiar e classe sensível → N2 confirma a fila; o resto → triagem humana. <span class="badge badge-real">REAL</span></p>
+      </div>
+    </div>
+    <div class="table-wrap" id="policy-table"></div>
+    <p class="hint" id="policy-note"></p>
+  </section>
+
+  <!-- 5. Novo ticket -->
+  <section id="tab-novo" class="panel" role="tabpanel" aria-labelledby="tabbtn-novo" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Novo ticket</h2>
+        <p class="lead">Cole um texto ou use um dos exemplos reais. O modelo classifica, busca os 3 tickets históricos mais parecidos e aplica o gate com o limiar atual.</p>
+      </div>
+    </div>
+    <div class="notice warn">
+      <strong>Aviso de domínio:</strong> o modelo foi treinado em tickets de suporte de TI em inglês, com texto normalizado (minúsculas, sem pontuação). Textos em português ou de outro domínio tendem a cair em confiança baixa e ir para triagem humana, que é o comportamento esperado.
+    </div>
+    <form id="form-novo">
+      <label for="novo-text">Texto do ticket</label>
+      <textarea id="novo-text" rows="5" placeholder="ex.: my laptop does not turn on after the last windows update" required></textarea>
+      <div class="examples" id="novo-examples"></div>
+      <div class="toolbar">
+        <button type="submit" class="btn btn-primary" id="btn-triar">Triar</button>
+        <span class="chip">limiar <strong class="threshold-readout">0,90</strong></span>
+      </div>
+    </form>
+    <div id="novo-result" aria-live="polite"></div>
+  </section>
+
+  <!-- 6. Fechamento padronizado -->
+  <section id="tab-fechamento" class="panel" role="tabpanel" aria-labelledby="tabbtn-fechamento" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Fechamento padronizado</h2>
+        <p class="lead">Regra: o ticket não fecha sem o template preenchido. Sem fechamento padronizado não há base de conhecimento, e sem base não há similaridade útil. O formulário é ilustrativo; a validação dos obrigatórios é feita pela API.</p>
+      </div>
+    </div>
+    <form id="form-fechamento" novalidate>
+      <div class="grid-fields">
+        <label>Ticket (opcional) <input type="text" name="ticket_id" id="fc-ticket" placeholder="ex.: h123"></label>
+        <label>Categoria <span class="req">*</span> <select name="category" id="fc-category"><option value="">— escolha —</option></select></label>
+        <label>Subcategoria <span class="req">*</span> <select name="subcategory" id="fc-subcategory"><option value="">— escolha a categoria —</option></select></label>
+        <label>Causa raiz <span class="req">*</span> <select name="root_cause_option" id="fc-root"><option value="">— escolha —</option></select></label>
+        <label>Detalhe da causa raiz <input type="text" name="root_cause_detail" id="fc-root-detail" placeholder="texto livre (obrigatório se “Outro”)"></label>
+        <label>Nível que resolveu <span class="req">*</span> <select name="resolved_by_level" id="fc-level"><option value="">— escolha —</option></select></label>
+        <label>Tempo gasto (min) <span class="req">*</span> <input type="number" name="time_spent_min" id="fc-min" min="1" step="1"></label>
+        <label class="full">Ação de resolução, passo a passo <span class="req">*</span> <small>(mínimo 20 caracteres)</small> <textarea name="resolution_steps" id="fc-steps" rows="4"></textarea></label>
+        <label class="full">Resposta enviada ao cliente <small>(se houve resposta)</small> <textarea name="customer_reply" id="fc-reply" rows="3"></textarea></label>
+        <fieldset>
+          <legend>Reutilizável como resposta padrão? <span class="req">*</span></legend>
+          <label class="inline"><input type="radio" name="reusable" value="true"> sim</label>
+          <label class="inline"><input type="radio" name="reusable" value="false"> não</label>
+        </fieldset>
+        <fieldset>
+          <legend>Reaberto? <span class="req">*</span></legend>
+          <label class="inline"><input type="radio" name="reopened" value="true"> sim</label>
+          <label class="inline"><input type="radio" name="reopened" value="false"> não</label>
+        </fieldset>
+        <label>Artigo de base de conhecimento vinculado <input type="text" name="kb_article" placeholder="ex.: KB-ACC-014"></label>
+        <label>Satisfação (1–5) <select name="satisfaction"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <label>Produto/sistema afetado <input type="text" name="affected_system"></label>
+        <label>Tags <small>(separadas por vírgula)</small> <input type="text" name="tags"></label>
+      </div>
+      <div class="toolbar">
+        <button type="submit" class="btn btn-primary" id="btn-fechar">Validar fechamento</button>
+        <button type="button" class="btn btn-ghost" id="btn-fc-exemplo">Preencher exemplo válido</button>
+        <button type="reset" class="btn btn-ghost">Limpar</button>
+      </div>
+    </form>
+    <div id="fechamento-result" aria-live="polite"></div>
+  </section>
+
+  <!-- 7. Similaridade após padronização -->
+  <section id="tab-similaridade" class="panel" role="tabpanel" aria-labelledby="tabbtn-similaridade" hidden>
+    <div class="section-head">
+      <div>
+        <h2>Similaridade após padronização</h2>
+        <p class="lead">Hoje a similaridade recupera tickets parecidos e a fila deles (real). Depois de ~30 dias de fechamentos padronizados, cada similar traria o template preenchido. Esta tela mostra os dois lado a lado.</p>
+      </div>
+    </div>
+    <div class="notice illus" id="sim-note"><span class="badge badge-ilustrativo">EXEMPLO ILUSTRATIVO</span> como ficaria após 30 dias de fechamentos padronizados. A similaridade e as classes são reais; o conteúdo do fechamento não.</div>
+    <div class="toolbar">
+      <label class="inline-field">Ticket de entrada
+        <select id="sim-select"></select>
+      </label>
+      <label class="inline-field">ou id do hold-out
+        <input type="text" id="sim-id" placeholder="ex.: h12" size="10">
+      </label>
+      <button type="button" class="btn btn-ghost" id="btn-sim-load">Carregar</button>
+    </div>
+    <div id="sim-result" aria-live="polite"></div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p>Protótipo de candidatura — não afiliado à G4 · LLM desligado: rascunhos por macro · classificação e similaridade locais (TF-IDF + regressão logística).</p>
+    <p class="tiny">A IA nunca responde ao cliente nem fecha ticket. Ela classifica, prioriza, roteia e prepara; humano responde e fecha.</p>
+  </div>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>

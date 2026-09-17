@@ -36,7 +36,7 @@ Limiar padrão **0,90**, ajustável no painel entre 0,50 e 0,99.
 | Classe (volume) | Ação | Motivo |
 |---|---|---|
 | Access (7.125) | auto-roteio com rascunho | repetitivo, alta precisão; rotear ≠ conceder acesso (concessão continua humana) |
-| Storage (2.777) | auto-roteio com rascunho | melhor precisão de todas; aumento de cota é decisão do N2 |
+| Storage (2.777) | auto-roteio com rascunho | melhor precisão entre as classes auto-roteáveis; aumento de cota é decisão do N2 |
 | Hardware (13.617) | auto-roteio com rascunho | troubleshooting padronizável; é a classe que absorve confusões (precision 0,81): primeira a ter kill switch |
 | Purchase (2.464) | sugerir | dinheiro e aprovação |
 | HR Support (10.915) | sugerir, nunca rascunho | pessoas; maior tentação de automatizar, exemplo central do que não automatizar |
