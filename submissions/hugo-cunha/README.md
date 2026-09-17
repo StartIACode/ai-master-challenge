@@ -118,4 +118,4 @@ A arquitetura N1-IA → N2 → N3 com o N2 definido operacionalmente; o template
 
 ---
 
-_Submissão enviada em: 16/09/2026_
+_Submissão enviada em: 17/09/2026 · PR: https://github.com/Gestao-Quatro-Ponto-Zero/ai-master-challenge/pull/134_

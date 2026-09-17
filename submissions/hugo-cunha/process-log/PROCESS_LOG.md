@@ -23,7 +23,7 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 21:05–21:40 | Prova de setup, deploy, documentação | (IA) | Clone limpo do fork cronometrado (2 min 00 s até 105 testes verdes); deploy na VPS falhou na primeira tentativa (Python do uv dentro de `/root`, inacessível ao `www-data`), script corrigido e reexecutado; README no template; este log; PDF de evidências. |
 | 22:10 | Revisão do Hugo sobre o protótipo publicado | P05 | **[Hugo]** Com um print do Painel: tirar 3 abas técnicas e 4 cards, trabalhar em português (modelo treinado em pt-BR), medir o TMA por nível pelo tempo do card em cada coluna, renomear contadores confusos, arrumar os botões do fechamento. |
 | 22:15–23:10 | Segunda rodada de construção | (IA) | Tradução offline do Dataset 2 para pt-BR (tradutor Argos/CTranslate2; 1ª tentativa a 3 tickets/s, reescrita para lotes a 33 tickets/s) e retreino; backend com TMA por nível (relógio por coluna, 8 testes novos); interface com 4 abas, painel do gestor, rótulos pt-BR; revisor independente; redeploy. |
-| depois | PR | (IA) | Abertura do PR após o OK do Hugo. |
+| 00:30 (17/09) | PR | P07 | **[Hugo]** "pode abrir o pr". PR aberto: https://github.com/Gestao-Quatro-Ponto-Zero/ai-master-challenge/pull/134 (só `submissions/hugo-cunha/`). |
 
 ## 3. Como decompus o problema antes de promptar
 
