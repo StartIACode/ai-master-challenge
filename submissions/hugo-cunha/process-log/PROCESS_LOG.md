@@ -18,8 +18,10 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 18:45–19:20 | Especificação, plano, fork, esqueleto | (IA) | Spec e plano com contratos de API fixos; fork; primeiro commit (com um tropeço no `.gitignore`, §4). |
 | 19:20–19:45 | Construção, onda 1 | (IA) | Agentes em paralelo: normalização + política + rascunhos (34 testes), diagnóstico do Dataset 1, treino do modelo (86,5% no hold-out, artefatos e figuras). |
 | 19:45–20:10 | Construção, onda 2 | (IA) | Backend (modelo em runtime, replay, board SQLite, template de fechamento, API; 104 testes) + revisor independente; documentos de diagnóstico e proposta escritos a partir dos JSONs. |
-| 20:10–21:00 | Construção, onda 3 | (IA) | Página única (7 abas), verificação no navegador, revisor; correções leves do revisor do backend aplicadas (vírgula decimal, exemplos representativos). |
-| depois | Prova de setup, README, PR, VPS | (IA) | Clone limpo cronometrado, README no template, PR, deploy público. |
+| 20:10–21:05 | Construção, onda 3 | (IA) | Página única (7 abas), verificação no navegador com 16 screenshots, revisor achou 1 problema alto (reset do formulário), corrigido e reaprovado; correções leves do revisor do backend aplicadas. |
+| 21:00 | Pedido de status | P04 | **[Hugo]** Cobrou status; recebeu o quadro do que estava feito, em andamento e pendente. |
+| 21:05–21:40 | Prova de setup, deploy, documentação | (IA) | Clone limpo do fork cronometrado (2 min 00 s até 105 testes verdes); deploy na VPS falhou na primeira tentativa (Python do uv dentro de `/root`, inacessível ao `www-data`), script corrigido e reexecutado; README no template; este log; PDF de evidências. |
+| depois | PR | (IA) | Abertura do PR após o OK do Hugo. |
 
 ## 3. Como decompus o problema antes de promptar
 
@@ -42,6 +44,11 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 7 | Os 3 exemplos fixos da demo (seed 7) caíam em um Administrative rights com p = 0,54 e dois Miscellaneous: nenhum caso de auto-roteio para mostrar. | Revisor independente do backend. | Seleção determinística de um trio representativo (auto-roteio, sugerir, baixa confiança). |
 | 8 | Motivos exibidos ao analista com ponto decimal e "1.00" por arredondamento. | Revisor independente. | Vírgula decimal e "0,99+" acima de 0,995; teste atualizado. |
 | 9 | Os documentos citaram 65,3% e 90,8% onde o exato era 65,2% e 90,7%. | Verificador de formatação do próprio agente de documentos. | Corrigido para os valores exatos dos JSONs. |
+| 10 | O botão "Preencher exemplo válido" e o fluxo "Resolver → Registrar fechamento" chamavam `form.reset()` e depois preenchiam os campos; o listener de reset limpava o que tinha acabado de ser preenchido (subcategorias dependentes vazias). | Revisor independente da interface reproduziu no navegador. | Reset programático sem disparar o listener; screenshot refeito; segunda revisão aprovada. |
+| 11 | Na verificação da interface, o agente navegou para outra aba por `#fragmento` achando que era recarga de página: o CSS editado não foi recarregado e ele quase deu por corrigido um erro que continuava. | O console ainda mostrava o 404 antigo. | Recarga completa forçada e nova verificação em sessão limpa. |
+| 12 | A tabela de política em 375 px saiu com linhas de até 161 px de altura porque uma regra de largura mínima espremia a coluna Motivo. | Screenshot em mobile. | Regra removida, largura mínima só na última coluna, screenshot refeito. |
+| 13 | A política dizia que Storage tinha "a melhor precisão entre as classes"; o JSON mostra Purchase acima (0,96 contra 0,94). | Agente dos documentos cruzou o texto com `per_class`. | Motivo corrigido para "entre as classes auto-roteáveis"; `policy.json` e a proposta regenerados. |
+| 14 | O deploy na VPS instalou o Python gerenciado pelo `uv` em `/root/.local`, e o serviço roda como `www-data`: `Permission denied` em loop de reinício. O script seguiu como se tivesse dado certo porque a verificação era um `sleep 3` e um `curl`. | `systemctl status` e `journalctl` na VPS. | Python instalado em `/opt/uv-python`, venv recriado, espera ativa de até 90 s pelo `/api/health`; deploy refeito. |
 
 ## 5. O que eu adicionei que a IA sozinha não faria **[Hugo]**
 
@@ -53,6 +60,6 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 
 ## 6. Iterações
 
-- 3 prompts meus (P01–P03) e 3 workflows multiagente (avaliação, reconciliação, construção) com 16 + 12 agentes, além de revisores com rodada de correção.
-- 8 commits no branch até a abertura do PR, cada um com uma etapa fechada e testada (34 → 104 testes).
-- Duas rodadas de correção após revisão independente (backend e interface).
+- Prompts meus: P01 a P04 (avaliar, propor, decidir e cobrar status) e 3 workflows multiagente: avaliação (9 agentes), reconciliação da minha proposta (7 agentes) e construção com revisores (10 agentes, 2 rodadas de revisão na interface).
+- Commits no branch, um por etapa fechada e testada (34 → 104 → 105 testes); histórico completo em `git log`.
+- Revisão independente do backend (aprovada, 5 observações leves aplicadas) e da interface (1 problema alto corrigido, segunda revisão aprovada com 4 observações leves aplicadas).

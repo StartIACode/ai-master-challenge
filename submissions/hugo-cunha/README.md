@@ -55,7 +55,7 @@ Documentos: [`docs/2026-09-16-desenho-solucao.md`](docs/2026-09-16-desenho-soluc
 cd submissions/hugo-cunha/solution/prototipo && make setup && make run
 ```
 
-Abra http://localhost:8010. Detalhes e fallback sem `uv` em [`solution/prototipo/README.md`](solution/prototipo/README.md). Screenshots em [`process-log/screenshots/`](process-log/screenshots/). URL pública: **PUBLIC_URL_PLACEHOLDER**
+Abra http://localhost:8010. Detalhes e fallback sem `uv` em [`solution/prototipo/README.md`](solution/prototipo/README.md). Screenshots em [`process-log/screenshots/`](process-log/screenshots/). URL pública: **https://g4-triagem.187-77-249-237.sslip.io** (VPS do candidato, Apache + Let's Encrypt; sem autenticação, dados reais do hold-out; o botão Reiniciar zera o board)
 
 ### Recomendações
 

@@ -22,15 +22,33 @@ ssh "$HOST" bash -s <<'REMOTE'
 set -euo pipefail
 command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
+# O Python gerenciado pelo uv precisa ficar fora de /root: o serviço roda como www-data.
+export UV_PYTHON_INSTALL_DIR=/opt/uv-python
+mkdir -p /opt/uv-python
 cd /opt/g4-triagem
-uv python install 3.13 >/dev/null 2>&1 || true
-uv sync --no-dev
+uv python install 3.13
+chmod -R a+rX /opt/uv-python
+# venv recriado se apontar para um Python inacessível ao www-data
+if [ -e .venv/bin/python ] && ! sudo -u www-data test -x "$(readlink -f .venv/bin/python)"; then rm -rf .venv; fi
+uv sync --no-dev --python 3.13
 cd data && (test -f all_tickets_processed_improved_v3.csv || unzip -o -q ds2.zip) && (test -f customer_support_tickets.csv || unzip -o -q ds1.zip)
 chown -R www-data:www-data /opt/g4-triagem
 REMOTE
 
 echo "== 3/6 serviço systemd"
-ssh "$HOST" "cp $APP/deploy/g4-triagem.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now g4-triagem && sleep 3 && systemctl restart g4-triagem && sleep 3 && curl -fsS http://127.0.0.1:8010/api/health"
+ssh "$HOST" bash -s <<'REMOTE'
+set -euo pipefail
+cp /opt/g4-triagem/deploy/g4-triagem.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable g4-triagem >/dev/null 2>&1 || true
+systemctl restart g4-triagem
+# carga do modelo numa VPS de 1 vCPU pode levar mais de 30 s: espera ativa
+for i in $(seq 1 45); do
+  if curl -fsS http://127.0.0.1:8010/api/health >/dev/null 2>&1; then curl -fsS http://127.0.0.1:8010/api/health; echo; break; fi
+  if [ "$i" -eq 45 ]; then echo "serviço não respondeu em 90 s"; systemctl status g4-triagem --no-pager | head -8; journalctl -u g4-triagem -n 15 --no-pager; exit 1; fi
+  sleep 2
+done
+REMOTE
 
 echo "== 4/6 vhost + certificado"
 ssh "$HOST" bash -s <<REMOTE
@@ -49,6 +67,6 @@ echo "== 5/6 conferindo que o vhost default não mudou"
 ssh "$HOST" "apache2ctl -S 2>/dev/null | grep -E 'port 443 namevhost' | head -2"
 
 echo "== 6/6 smoke test público"
-curl -fsS -I "https://$DOMAIN/api/health" | head -1
+curl -fsS -o /dev/null -w "GET /api/health -> %{http_code}\n" "https://$DOMAIN/api/health"
 curl -fsS "https://$DOMAIN/api/health"; echo
 echo "OK: https://$DOMAIN"
