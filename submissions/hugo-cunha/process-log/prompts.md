@@ -81,3 +81,10 @@
 
 **O que a IA fez:** respondeu com o status por etapa (concluído / em andamento / pendente), pediu o LinkedIn para o template e reexplicou o limiar do gate em linguagem de gestor.
 
+**Fechamento da construção (após o P04):**
+- Interface aprovada em segunda revisão; 4 observações leves aplicadas; 105 testes verdes.
+- Prova de setup em clone limpo do fork: `git clone` + `make setup` + `make train` + `make test` em 2 min 00 s.
+- Deploy na VPS: primeira tentativa falhou (Python do `uv` em `/root`, inacessível ao `www-data`); script corrigido; segunda tentativa no ar em https://g4-triagem.187-77-249-237.sslip.io com Let's Encrypt e vhost padrão intacto. Replay testado no site público pelo navegador, sem erros de console.
+- README no template do G4, process log, prompts literais e `evidencias.pdf` comitados e publicados no fork (branch `submission/hugo-cunha`, 71 arquivos, todos dentro de `submissions/hugo-cunha/`).
+- PR **não** aberto ainda: aguarda o LinkedIn e o OK do Hugo.
+
