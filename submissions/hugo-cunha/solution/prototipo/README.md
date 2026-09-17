@@ -8,7 +8,7 @@ Requisitos: Python ≥ 3.12 e [`uv`](https://docs.astral.sh/uv/) (`curl -LsSf ht
 
 ```bash
 make setup   # uv sync + extrai os CSVs (CC0, versionados em data/) e confere os SHA-256
-make run     # treina se models/index.pkl não existir (~75 s) e sobe em http://localhost:8010
+make run     # treina se models/index.pkl não existir (~110 s) e sobe em http://localhost:8010
 ```
 
 Outros alvos: `make train` (regenera modelo, `artifacts/metrics.json`, `artifacts/ds1_metrics.json` e figuras), `make test` (113 testes), `make clean`.
@@ -25,11 +25,11 @@ python scripts/train.py && python scripts/diagnostico_ds1.py
 uvicorn app.api:app --port 8010
 ```
 
-Prova de setup em clone limpo (Mac M-series, 16/09/2026): `git clone` + `make setup` + `make train` + `make test` em **2 min 00 s** (1:59,7 de relógio; 105 testes verdes).
+Prova de setup em clone limpo (Mac M-series, 16/09/2026): `git clone` + `make setup` + `make train` + `make test` em **2 min 00 s** (1:59,7 de relógio; 113 testes verdes).
 
 ## O que é real e o que é simulado
 
-| Real (medido no hold-out de 9.490 tickets nunca vistos no treino) | Simulado (rotulado na tela) |
+| Real (medido no hold-out de 9.481 tickets nunca vistos no treino) | Simulado (rotulado na tela) |
 |---|---|
 | Texto dos cards (tradução pt-BR de tickets reais), classe prevista **e** verdadeira, confiança, top-3, 3 tickets similares com similaridade | Chegada em lotes (replay) |
 | Cobertura e acerto por limiar e por classe, matriz de confusão, calibração (`artifacts/metrics.json`) | Hora de chegada e nomes dos responsáveis (rodízio) |

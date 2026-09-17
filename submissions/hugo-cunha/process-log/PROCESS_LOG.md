@@ -55,6 +55,7 @@ Tudo foi feito com IA, inclusive este texto. O meu papel foi decidir: o que pedi
 | 16 | A primeira rodada de tradução usou o pipeline completo do Argos (segmentação por stanza) e rendia 3 tickets/s: mais de 4 horas. | Medição de ritmo no primeiro minuto. | Script reescrito para chamar o motor CTranslate2 direto, em lotes de 64 e pedaços de 20 palavras: 33 tickets/s, ~25 min. |
 | 17 | Na verificação da nova interface, o agente "recarregou" a página mudando só o fragmento da URL e validou plural errado nos contadores com o JavaScript antigo. | O texto dos KPIs não mudava. | Recarga com query string e verificação refeita; helper de plural. |
 | 18 | Com a API fora do ar, o Painel continuava tentando atualizar a cada 5 s e repetia o aviso. | Revisor independente reproduziu com fetch rejeitado. | O relógio de atualização para quando a API falha e volta ao trocar de aba ou clicar em Atualizar. |
+| 19 | O script de tradução gravou o CSV, mas falhou ao gravar os metadados por chamar um atributo de versão que a biblioteca não tem. | Saída do treino encadeado. | Metadados gravados à mão com a mesma informação; script corrigido para ler a versão pelo `importlib.metadata`. |
 
 ## 5. O que eu adicionei que a IA sozinha não faria **[Hugo]**
 

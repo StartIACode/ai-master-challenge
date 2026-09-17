@@ -88,3 +88,49 @@
 - README no template do G4, process log, prompts literais e `evidencias.pdf` comitados e publicados no fork (branch `submission/hugo-cunha`, 71 arquivos, todos dentro de `submissions/hugo-cunha/`).
 - PR **não** aberto ainda: aguarda o LinkedIn e o OK do Hugo.
 
+---
+
+## P05 — 2026-09-16 ~22:10 (BRT) — revisão do Hugo sobre o protótipo publicado (com print do Painel)
+
+**Prompt do Hugo (literal):**
+
+> Deleta as abas
+>
+> Similaridade apos padronizacao
+> vamos trabalhar em portugues, o modelo tem que ser treinado em portugues
+> ajusta o layout dos botoes da aba fechamento padronizado
+> remove a aba politica por classe
+> remove pontos de operacao
+> e vamos falar sobre o painel
+>
+> Nao entendi tickets no replay
+> N1 auto roteado é o que a IA escalou para N2?
+> TEM que medir o TMA por fase, de acordo com o tempo que o card ficou no board
+> Remove esses 4 cards: Modelo Dataset2, GATE no lmiar atual, Controle negativo e TMA
+
+(Acompanhado de um print do Painel do protótipo público.)
+
+**Decisões do Hugo (julgamento humano):** simplificar o protótipo para o que um gestor usa (sem abas técnicas), trabalhar em português (modelo treinado em pt-BR), medir o TMA por nível pelo tempo que o card fica em cada coluna do board, e trocar o painel técnico por indicadores operacionais.
+
+**O que a IA fez:** traduziu o Dataset 2 para pt-BR com tradutor offline e retreinou; removeu 3 abas e 4 cards; renomeou os contadores; implementou o TMA por nível medido no board; ajustou os botões do fechamento; atualizou documentos, testes, deploy e evidências.
+
+---
+
+## P06 — 2026-09-16 ~23:20 (BRT)
+
+**Prompt do Hugo (literal):**
+
+> [www.linkedin.com/in/hugo-cunha-1138b540](https://www.linkedin.com/in/hugo-cunha-1138b540)
+>
+> meu linkedin
+
+**O que a IA fez:** preencheu o LinkedIn no README da submissão (no lugar do marcador) e seguiu a rodada 2.
+
+**Execução da rodada 2 (após P05 e P06):**
+- Tradução do Dataset 2 para pt-BR com tradutor offline (Argos Translate / CTranslate2). Erros da IA corrigidos no caminho: "windows" virou "janelas" (lista de termos protegidos); primeira versão a 3 tickets/s (reescrita para lotes: 33 tickets/s, 25 min); o script falhou ao gravar os metadados por um atributo de versão inexistente (metadados gravados e script corrigido).
+- Retreino em português: acurácia 84,5% (inglês: 86,5%), macro-F1 0,849, ECE 0,035; limiar 0,90 cobre 49,3% com 98,1% de acerto, cobertura útil 24,8% com 98,0%. Pisos dos testes de regressão rebaixados de 0,85/0,25 para 0,84/0,24 com o motivo registrado no código.
+- Backend: TMA por nível medido pelo tempo do card em cada coluna (relógio injetável, 8 testes novos, 113 no total). Interface: 4 abas, painel do gestor, rótulos em português, seletor de limiar no board, botões do fechamento espaçados; revisor independente aprovou com um ajuste médio (polling com API fora) e leves, aplicados.
+- Erro de processo da IA, corrigido: o arquivo de checkpoint da tradução (7,3 MB) entrou num commit intermediário; os dois commits da rodada foram reescritos num só, sem o arquivo, e a branch do fork foi atualizada com force-with-lease (PR ainda não aberto, sem impacto externo).
+- Redeploy na VPS: OK na primeira tentativa desta rodada (https://g4-triagem.187-77-249-237.sslip.io com o modelo em português). Verificação local e pública no navegador sem erros de console.
+- Documentos (README, diagnóstico, proposta, adendo na especificação) atualizados com os números novos por agente redator, com verificador automático de números contra o metrics.json.
+

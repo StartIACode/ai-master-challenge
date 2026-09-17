@@ -70,7 +70,7 @@ REASONS: dict[str, str] = {
     "Hardware": "troubleshooting padronizável; classe que absorve confusões, primeira a ter kill switch",
     "Purchase": "envolve dinheiro e aprovação: N2 confirma a fila",
     "HR Support": "envolve pessoas: nunca rascunho automático",
-    "Administrative rights": "elevação de privilégio é segurança e o modelo erra 31% da classe",
+    "Administrative rights": "elevação de privilégio é segurança e é a classe que o modelo menos reconhece",
     "Internal Project": "não é suporte; vai ao PMO com confirmação",
     "Miscellaneous": "classe 'não sei' por definição: sempre humano",
 }

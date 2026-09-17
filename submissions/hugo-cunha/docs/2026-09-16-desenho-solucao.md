@@ -149,3 +149,21 @@ Tabela por canal × prioridade × tipo (n, satisfação média, "tempo" ingênuo
 | F5 documentos | `diagnostico.md`, `proposta.md`, README no template, process log, PDF | README ≤ 5 páginas; cada número tem origem |
 | F6 PR | push no fork, PR `[Submission] Hugo Cunha — Challenge 002` | "Files changed" só em `submissions/hugo-cunha/` |
 | F7 VPS | `deploy/vps.sh`, vhost, HTTPS | URL pública respondendo; link no README |
+
+## 14. Adendo — revisão do Hugo sobre o protótipo publicado (P05, 22:10)
+
+Com o protótipo no ar, o Hugo o revisou como gestor, não como avaliador, e pediu uma segunda rodada. Decisão de produto: **o painel é para quem opera o suporte, não para quem avalia o modelo**. As seções 1–13 registram o desenho original e continuam valendo no que não está listado abaixo; os contratos de API (§6.3) não mudaram (`GET /api/board` passou a devolver também `counters.tma`).
+
+| O que mudou | Antes (seções 1–13) | Depois (rodada 2) | Por quê |
+|---|---|---|---|
+| Idioma | Modelo treinado no Dataset 2 em inglês; aviso "texto em inglês" na tela | Dataset 2 traduzido uma única vez para pt-BR com tradutor offline (Argos Translate / CTranslate2, pacote en_pt 1.9; `scripts/traduzir_ds2.py`; `data/ds2_pt.csv.gz` + `ds2_pt.meta.json`); rótulos inalterados; termos de produto preservados; modelo retreinado em português | Quem opera e quem avalia trabalha em português; em produção o modelo treina no histórico em português da empresa, sem tradução |
+| Abas | 7 telas (§6.1) | 4: **Painel · Board · Novo ticket · Fechamento padronizado**. Removidas: Ponto de operação, Política por classe, Similaridade após padronização | Técnicas demais para um Diretor; a política continua no código e na proposta; a similaridade real (top-3) continua nos cards do board; a tela ilustrativa vira conceito na proposta |
+| Painel | Contadores do replay + cards "TMA não mensurável" e "controle negativo do Dataset 1" | Indicadores do gestor: tickets recebidos, % tratados pela IA (N1-IA), % delegados ao humano (N2), % escalados ao N3, acerto da IA, "IA errou" (overrides), e **TMA N1-IA / N2 / N3** | Painel para operação; os cards de modelo e o controle negativo ficam nos documentos |
+| TMA por nível | "não mensurável nos datasets" | **Medido no board**: tempo médio que o card ficou em cada coluna nesta sessão (`level_entered_at`, `t_n1`/`t_n2`/`t_n3`; selo MEDIDO NO BOARD). Os datasets continuam sem TMA histórico | Pedido do Hugo: medir o que o board permite medir, rotulado como tal |
+| Limiar | Slider 0,50–0,99 na aba Ponto de operação + calculadora SIMULAÇÃO | Seletor **0,80 / 0,90 / 0,95** na barra do Board; vale para os próximos lotes e para Novo ticket; calculadora removida | Três pontos de operação bastam ao gestor; a conta de ROI fica na proposta |
+| Rótulos | Classes em inglês na tela | Português na tela (Acesso, Direitos administrativos, Suporte de RH, Hardware, Projeto interno, Diversos, Compras, Armazenamento); chaves em inglês na API | Leitura sem tradução mental; contratos intactos |
+| Fechamento | Botões do formulário (§6.1, item 6) | Botões revisados a pedido do P05: **Validar fechamento · Preencher exemplo válido · Limpar**; o fluxo "Resolver → Registrar fechamento" do board leva ao formulário preenchido | Pedido do Hugo |
+| Números | 86,5% de acurácia; 0,90 cobre 53,9% com 98,3% (útil 26,5% / 98,2%) (§2, §3.2) | Acurácia 84,5%, macro-F1 0,849, ECE 0,035, cv5 84,4%; 0,80: 62,2% / 96,4% (útil 31,5% / 96,1%); **0,90: 49,3% / 98,1% (útil 24,8% / 98,0%)**; 0,95: 39,9% / 98,9% (útil 19,7% / 98,9%); 1-NN 68,3%; ≥ 0,90 de similaridade cobre 1,2% | Retreino no corpus em português (−2 p.p.); fonte única `artifacts/metrics.json`, regenerada por `make train` |
+| Testes | 105 | 113 (8 novos: TMA por nível no board); pisos ajustados ao corpus em português (acurácia ≥ 0,84, cobertura útil a 0,90 ≥ 0,24, antes 0,85 / 0,25 em §7) | Corpus mudou; o teste continua sendo o contrato |
+
+O que **não** mudou: a regra de que a IA nunca responde nem fecha; o gate (§3.2) e a política por classe (§3.3); o template de fechamento (§4); o modelo e o pipeline (§7), agora alimentados por `data/ds2_pt.csv.gz` quando o arquivo existe; stack e deploy (§10). Os documentos da submissão (README, diagnóstico, proposta) foram reescritos com os números novos.
